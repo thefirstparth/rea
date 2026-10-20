@@ -524,29 +524,26 @@ async function poll(force) {
   const r = route();
   S.busy++;
   view.setAttribute("aria-busy", "true");
-  const jobs = [];
-  if (r.kind === "list" || !S.list) jobs.push(loadList());
-  // Tables and the followed team are found from the schedule and the ICC event: they
-  // load once those have.
-  const sched =
-    r.kind === "list" && r.tab !== "all" && schedStale() ? loadSched() : null;
-  if (sched) jobs.push(sched);
-  const tour =
-    r.kind === "list" && wcMode !== "off" && tourStale() ? loadTour() : null;
-  if (tour) jobs.push(tour);
-  if (
-    r.kind === "list" &&
-    (r.tab === "ipl" || r.tab === "wc" || (r.tab === "now" && fav))
-  )
-    jobs.push(
-      Promise.all([sched, tour]).then(() => Promise.allSettled(listExtras(r))),
-    );
-  if (r.kind === "match") jobs.push(...matchJobs(r, force));
-  if (alertsOn && r.kind === "match") jobs.push(loadList());
+  const jobs = r.kind === "list" ? listJobs(r) : matchJobs(r, force);
+  if (!S.list || (alertsOn && r.kind === "match")) jobs.push(loadList());
   await Promise.allSettled(jobs);
   if (alertsOn) await checkAlerts(r);
   if (!--S.busy) view.removeAttribute("aria-busy");
   render();
+}
+
+// A list page's loads. Tables and the followed team are found from the schedule and
+// the ICC event: they load once those have.
+function listJobs(r) {
+  const jobs = [loadList()];
+  const sched = r.tab !== "all" && schedStale() ? loadSched() : null;
+  const tour = wcMode !== "off" && tourStale() ? loadTour() : null;
+  jobs.push(...[sched, tour].filter(Boolean));
+  if (r.tab === "ipl" || r.tab === "wc" || (r.tab === "now" && fav))
+    jobs.push(
+      Promise.all([sched, tour]).then(() => Promise.allSettled(listExtras(r))),
+    );
+  return jobs;
 }
 
 const SOON = 60 * 60000;

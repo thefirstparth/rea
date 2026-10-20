@@ -149,6 +149,49 @@ sanitised, no `$undefined`. Re-capturing therefore refreshes the evidence
 without rewriting tests. The scorecard venue regression fails when the old
 first-`matchInfo` lookup is put back.
 
+The browser tests (`test/ui.test.mjs`, `test/ui-scenarios.test.mjs`, over the
+harness in `test/ui-harness.mjs`) replay `test/fixtures/ui-api.json`, recorded
+by `test/capture-ui.mjs` while following an IPL side with the World Cup tab on.
+Every view is audited for overlap, overflow, clipping, contrast and tap size at
+320, 390 and 1280px in light and dark. The scenarios move the clock and the
+data: the worst live match to lay out, the IPL tab between seasons and
+mid-season (the recorded 2026 season, half of it turned back into fixtures), and
+the World Cup tab a week before its event and under each setting.
+
+## Keeping it running
+
+Nothing in Crease names a season, a year or a series: the IPL season comes from
+Cricbuzz's league schedule, the last one from its yearly archive, the ICC event
+from India's fixtures, a followed team from its team page. So the app moves from
+season to season and event to event on its own, for as long as its sources keep
+their formats.
+
+`.github/workflows/crease-canary.yml` checks that every day. It runs
+`test/canary.mjs` against the deployed app (`vars.CREASE_URL`, default
+https://trycrease.vercel.app): the page, the match lists, the schedules and
+archive, an IPL points table, the ICC event, a team page, a match centre with
+its scorecard and squads, and Cricinfo for the same match. Each check asserts
+only what holds on any day. A failure opens one issue labelled `crease-canary`
+(later failures comment on it), and the next passing run closes it. Run it by
+hand with `node experiments/cricket-live/test/canary.mjs [url]`, or from the
+Actions tab. GitHub pauses scheduled workflows in a repository with no activity
+for 60 days and emails before it does; re-enable it from the Actions tab.
+
+### When a source changes
+
+1. The failing check names the route and what broke (an HTTP status, or a
+   missing field). Reproduce it locally: `NODE_USE_ENV_PROXY=1 node
+   experiments/cricket-live/server.mjs`, then the canary against
+   `http://localhost:5173`.
+2. Find the parser: every route and its source page are listed under "How it
+   works"; each adapter (`lib/cricbuzz.mjs`, `lib/cricinfo.mjs`) is the only
+   place that knows its source's format, and exports its parsers as `parse`.
+3. Re-record the fixtures (`test/capture.mjs`, then `test/capture-ui.mjs`
+   against a running local server), run the tests, and fix the parser until
+   they pass. The invariants don't need rewriting for new data.
+4. "Cricbuzz returned 403" on Vercel but not locally means the source blocks
+   Vercel's network, not a format change (see Limits).
+
 ## Front end
 
 - **Now** (home) is only what matters now: the live India or IPL match, else
