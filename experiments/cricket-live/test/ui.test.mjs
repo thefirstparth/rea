@@ -14,16 +14,19 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { auditScript } from "./ui-audit.mjs";
+import { parse as cb } from "../lib/cricbuzz.mjs";
 
 const PUBLIC = fileURLToPath(new URL("../public/", import.meta.url));
 const rec = JSON.parse(
   await readFile(new URL("./fixtures/ui-api.json", import.meta.url), "utf8"),
 );
 const { live, done, next } = rec.matches;
+// What the server answers; the worst-case test swaps in a harder version.
+let api = rec.api;
 const TYPES = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css",
@@ -57,7 +60,7 @@ before(async () => {
   server = createServer(async (req, res) => {
     const url = new URL(req.url, "http://x");
     if (url.pathname.startsWith("/api/")) {
-      const hit = rec.api[url.pathname + url.search];
+      const hit = api[url.pathname + url.search];
       res.writeHead(hit?.status ?? 404, { "content-type": "application/json" });
       return res.end(JSON.stringify(hit?.body ?? { error: "Not recorded" }));
     }
@@ -286,3 +289,95 @@ test("India's latest result is on screen without a tap", { skip }, async () => {
   assert.ok(await first.locator(".mr").first().isVisible());
   await v.close();
 });
+
+// The recorded live match made as hard to lay out as real matches get: long team names,
+// a declared first innings in a two-innings score, a ten-ball over with every extras
+// code, reviews left, and real DRS reviews (test/fixtures/cb-comm-reviews.json) with one
+// still being decided at the top.
+function worstCase() {
+  const hard = structuredClone(rec.api);
+  const m = hard[`/api/match/${live}`].body;
+  const [a, b] = [m.header.t1, m.header.t2];
+  a.name = "Himachal Pradesh";
+  b.name = "Western Australia";
+  const inns = m.mini.innings;
+  Object.assign(inns[0], { r: 528, w: 8, dec: true, o: 151 });
+  Object.assign(inns.at(-1), { r: 210, w: 4, o: 63.4 });
+  m.mini.recent = [
+    ["1", "Wd", "Wd", "N1", "4", "W", "L1", "6", "1", "2"],
+    ["0", "B4", "2Wd", "6", "W"],
+  ];
+  m.mini.reviews = [
+    { teamId: a.id, left: 2 },
+    { teamId: b.id, left: 0 },
+  ];
+  const raw = JSON.parse(
+    readFileSync(new URL("./fixtures/cb-comm-reviews.json", import.meta.url)),
+  );
+  const top = m.commentary[0].ts;
+  const reviews = cb
+    .commentary(raw)
+    .map((c, i) => ({ ...c, ts: top - 1000 - i }));
+  const pending = {
+    kind: "note",
+    ts: top + 1,
+    inn: inns.at(-1).inn,
+    ball: null,
+    event: null,
+    html: "<b>Given out LBW. Aryan Bora reviews.</b> Looked to be sliding down leg.",
+    review: { pending: true },
+  };
+  m.commentary = [pending, ...m.commentary.slice(0, 3), ...reviews];
+  const row = hard["/api/matches"].body.matches.find(
+    (x) => String(x.id) === live,
+  );
+  row.t1.name = a.name;
+  row.t2.name = b.name;
+  row.s1 = [
+    { r: 528, w: 8, dec: true, o: 151 },
+    { r: 210, w: 4, o: 63.4 },
+  ];
+  return hard;
+}
+
+test(
+  "the hardest live match still fits, and shows its reviews",
+  { skip },
+  async () => {
+    api = worstCase();
+    try {
+      const problems = [];
+      const views = ["light", "dark"].flatMap((theme) =>
+        [
+          [320, 640],
+          [412, 915],
+          [1280, 800],
+        ].flatMap(([width, height]) =>
+          [`#m/${live}/live`, "#all"].map((r) => ({ r, width, height, theme })),
+        ),
+      );
+      for (const { r, ...at } of views) {
+        const v = await open(r, at);
+        for (const f of await audit(v.page))
+          problems.push(
+            `${at.width} ${at.theme} ${r}: ${f.kind} ${f.a}${f.b ? ` ⟂ ${f.b}` : ""} ${f.detail ?? ""}`,
+          );
+        for (const e of v.errors) problems.push(`${r}: error ${e}`);
+        await v.close();
+      }
+      assert.deepEqual(problems, []);
+      const v = await open(`#m/${live}/live`);
+      const text = await v.page.locator("#view").innerText();
+      assert.match(text, /Review in progress/i);
+      assert.match(text, /Out stands · review lost/);
+      assert.match(text, /Overturned · not out/);
+      assert.match(text, /Reviews left/i);
+      assert.equal(await v.page.locator(".ci .b.drs").count(), 4);
+      // Flash notes and the review notes are folded into their deliveries.
+      assert.doesNotMatch(text, /THATS OUT!!/);
+      await v.close();
+    } finally {
+      api = rec.api;
+    }
+  },
+);

@@ -103,3 +103,32 @@ test("a five-for fires once", () => {
   );
   assert.match(out[1][0].title, /^Five-for for /);
 });
+
+// The Jewel Andrew review (test/fixtures/cb-comm-reviews.json): asked for, then decided.
+test("a review fires when asked for and again with its outcome, under one tag", () => {
+  const raw = JSON.parse(
+    readFileSync(new URL("./fixtures/cb-comm-reviews.json", import.meta.url)),
+  );
+  const upTo = (ts) => {
+    const d = structuredClone(live);
+    d.commentary = cb.commentary(
+      raw.filter((v) => v.timestamp >= 1791985946891 && v.timestamp <= ts),
+      { live: true },
+    );
+    return snapshot(listEntry, d);
+  };
+  const out = run(
+    upTo(1791985946891),
+    upTo(1791985980199),
+    upTo(1791986065519),
+    upTo(1791986065519),
+  );
+  assert.deepEqual(out[0], []);
+  assert.match(out[1][0].title, /^Review! /);
+  assert.match(out[1][0].body, /Jewel Andrew reviews/);
+  assert.match(out[2][0].title, /^Review: Out stands · review lost · /);
+  assert.equal(out[1][0].tag, out[2][0].tag);
+  assert.deepEqual(out[3], []);
+  // Opening the app on a decided review doesn't replay it.
+  assert.deepEqual(run(upTo(1791986065519))[0], []);
+});

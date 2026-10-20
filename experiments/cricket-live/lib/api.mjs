@@ -76,26 +76,27 @@ function resolve(pathname, query) {
   return null;
 }
 
-function send(res, status, data, cache) {
+function send(res, status, data, headers) {
   res.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
-    "cache-control": cache,
+    ...headers,
   });
   res.end(JSON.stringify(data));
 }
 
-// Browsers always revalidate; a CDN in front (Vercel's) shares answers for `ttl` seconds.
+// Browsers must not keep answers: stale-while-revalidate in Cache-Control applies to
+// their own cache too, which served every poll the previous answer. Only the CDN in
+// front (Vercel's, via CDN-Cache-Control) shares answers for `ttl` seconds, and each
+// answer's asOf says when it was fetched upstream.
 export async function handleApi(res, pathname, query) {
   try {
     const route = resolve(pathname, query);
     if (!route) throw new UpstreamError("Unknown route", 404);
     const data = await route.load();
-    send(
-      res,
-      200,
-      data,
-      `public, max-age=0, s-maxage=${route.ttl}, stale-while-revalidate=${route.ttl * 2}`,
-    );
+    send(res, 200, data, {
+      "cache-control": "no-store",
+      "cdn-cache-control": `public, max-age=${route.ttl}, stale-while-revalidate=${route.ttl}`,
+    });
   } catch (err) {
     const status = err instanceof UpstreamError ? err.status : 500;
     if (status >= 500) console.error(`[api] ${pathname}:`, err.message);
@@ -103,7 +104,7 @@ export async function handleApi(res, pathname, query) {
       res,
       status,
       { error: err.message || "Something went wrong" },
-      "no-store",
+      { "cache-control": "no-store" },
     );
   }
 }

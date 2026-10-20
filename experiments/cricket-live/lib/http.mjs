@@ -14,22 +14,21 @@ const cache = new Map();
 const CACHE_MAX = 400;
 
 // One in-flight load per key; on failure keep serving the last good value briefly.
-export function cached(key, ttlMs, load) {
+// Resolves to { value, at }: `at` is when the value was fetched upstream, which is
+// what "Updated …" must mean, however long the answer then sat in a cache.
+export function cachedAt(key, ttlMs, load) {
   const now = Date.now();
   const hit = cache.get(key);
   if (hit && hit.exp > now) return hit.pending ?? Promise.resolve(hit.good);
   const pending = load().then(
-    (good) => {
-      cache.set(key, { exp: Date.now() + ttlMs, good, hasGood: true });
+    (value) => {
+      const good = { value, at: Date.now() };
+      cache.set(key, { exp: good.at + ttlMs, good });
       return good;
     },
     (err) => {
-      if (hit?.hasGood) {
-        cache.set(key, {
-          exp: Date.now() + 5000,
-          good: hit.good,
-          hasGood: true,
-        });
+      if (hit?.good) {
+        cache.set(key, { exp: Date.now() + 5000, good: hit.good });
         return hit.good;
       }
       cache.delete(key);
@@ -37,15 +36,13 @@ export function cached(key, ttlMs, load) {
     },
   );
   cache.delete(key); // re-insert so Map order tracks recency
-  cache.set(key, {
-    exp: now + ttlMs,
-    pending,
-    good: hit?.good,
-    hasGood: !!hit?.hasGood,
-  });
+  cache.set(key, { exp: now + ttlMs, pending, good: hit?.good });
   while (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
   return pending;
 }
+
+export const cached = async (key, ttlMs, load) =>
+  (await cachedAt(key, ttlMs, load)).value;
 
 // `source` names the upstream in error messages shown to the user.
 export async function get(url, accept, source) {

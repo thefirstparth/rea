@@ -13,20 +13,34 @@
     />
     <meta name="theme-color" content="#f3f3f5" id="themeColor" />
     <script>
+      // "light" or "dark" when chosen in Settings; otherwise (or with storage blocked)
+      // the device's setting.
+      var t = null;
       try {
-        var t = localStorage.getItem("crease-theme");
-        if (
-          t === "dark" ||
-          (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches)
-        ) {
-          document.documentElement.dataset.theme = "dark";
-          document.getElementById("themeColor").content = "#000000";
-        }
+        t = localStorage.getItem("crease-theme");
       } catch (e) {}
+      if (
+        t === "dark" ||
+        (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches)
+      ) {
+        document.documentElement.dataset.theme = "dark";
+        document.getElementById("themeColor").content = "#000000";
+      }
     </script>
+    <style>
+      /* The page colour before the stylesheet arrives: no white flash on a slow line. */
+      html {
+        background: #f3f3f5;
+      }
+      html[data-theme="dark"] {
+        background: #000;
+      }
+    </style>
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link
       rel="stylesheet"
+      media="print"
+      onload="this.media = 'all'"
       referrerpolicy="no-referrer"
       href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Barlow+Condensed:wght@500;600;700&display=swap"
     />
@@ -81,14 +95,14 @@
       </ul>
       <p>Clearing this site's data in your browser removes them all.</p>
 
-      <h2>Alerts</h2>
+      <h2 id="alerts">Alerts</h2>
       <p>
         Alerts only work after you allow notifications in your browser. Crease
-        then checks for wickets, milestones and match starts while it is open,
-        and shows the notification itself. To show notifications on Android,
-        browsers need a small background script (a service worker); Crease
-        installs one only when you turn alerts on, removes it when you turn them
-        off, and it stores nothing.
+        then checks for match starts, wickets, DRS reviews and milestones while
+        it is open, and shows the notification itself. To show notifications on
+        Android, browsers need a small background script (a service worker);
+        Crease installs one only when you turn alerts on, removes it when you
+        turn them off, and it stores nothing.
       </p>
 
       <h2>Other sites your browser contacts</h2>

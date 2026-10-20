@@ -58,7 +58,7 @@ event is found from the same fixture.
 | `GET /api/matches`                         | live, recent and upcoming list pages (RSC payload) and `/api/home`                              | 15s to 5m                |
 | `GET /api/match/:id`                       | `/api/mcenter/comm/:id` (header, miniscore, latest commentary)                                  | 10s                      |
 | `GET /api/match/:id/commentary?inn&before` | `/api/mcenter/commentary-pagination/:id/:inn/:beforeTimestamp`                                  | 60s                      |
-| `GET /api/match/:id/scorecard`             | `/live-cricket-scorecard/:id/x` page, `scoreCard` in the RSC payload                            | 15s                      |
+| `GET /api/match/:id/scorecard`             | `/live-cricket-scorecard/:id/x` page, `scoreCard` in the RSC payload                            | 10s                      |
 | `GET /api/schedule`                        | India's team schedule and results pages (team 2), the league schedule page, the IPL series page | 30m (league schedule 6h) |
 | `GET /api/match/:id/squads`                | `/cricket-match-squads/:id/x` page, `team1`/`team2` in the RSC payload                          | 60s                      |
 
@@ -180,9 +180,29 @@ first-`matchInfo` lookup is put back.
   plain.
 - The live tab also loads the scorecard so it can show the batting side's fall
   of wickets.
+- **Caching**: browsers never keep API answers (`cache-control: no-store`); only
+  the CDN shares them, for the times above (`CDN-Cache-Control`). Each answer's
+  `asOf` is when Crease fetched it from the source, so "Updated …" is honest. A
+  live score never steps back a ball on a lagging answer, the scorecard says when
+  it trails the live score, and the commentary says when Cricbuzz has posted no
+  ball for 8 minutes of play.
+- **DRS reviews**: Cricbuzz marks a reviewed delivery with the `udrs` event. The
+  adapter reads the verdict from its text only when it is stated plainly
+  ("overturned", "wastes a review", "umpire's call … retained"); otherwise the
+  review shows without one. Cricbuzz's "THATS OUT!!" flash and its "X reviews"
+  note are folded into the delivery once it is posted; until then the note shows
+  as a review in progress. The live tab shows reviews left when the match uses
+  DRS. Cricinfo's blog marks no reviews, so its commentary shows none.
+- **Venue time**: next-match cards and Info show the start on the ground's own
+  clock (from Cricbuzz's venue UTC offset), with a day, day-night or night glyph,
+  whenever the ground isn't on India's time.
+- **Series results**: India's games as chips, a row per format: match number and
+  the winner's short name, NR or Draw, the date of one to come; the standing per
+  format ("ODIs: IND won 2–1") replaces a single mixed tally.
 - **Alerts** (the bell): for India and IPL matches, a notification when a match
-  starts, for each wicket (with the dismissal), for a batter's fifty or hundred,
-  and for a bowler's five-for. The bell opens a short explanation first; turning
+  starts, for each wicket (with the dismissal), when a decision is reviewed and
+  again with its outcome (the outcome replaces the first), for a batter's fifty
+  or hundred, and for a bowler's five-for. The bell opens a short explanation first; turning
   alerts on asks for notification permission, and every outcome (on, off,
   blocked) shows a visible message. The choice is remembered. Detection lives in `public/alerts.js`, a pure module the
   tests run in Node: opening the app never replays old events, and a wicket is
