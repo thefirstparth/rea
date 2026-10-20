@@ -419,6 +419,10 @@ main {
   stroke-linejoin: round;
   transition: transform 0.4s var(--spring-fast);
 }
+.tabs a svg .ball {
+  fill: currentColor;
+  stroke: none;
+}
 .tabs a[aria-current] {
   color: #fff;
 }
