@@ -481,6 +481,44 @@ export async function schedule() {
   };
 }
 
+// ICC men's events: World Cups (ODI and T20) and the Champions Trophy. Qualifiers
+// and regional events are left out.
+const ICC_EVENT = /\b(world cup|champions trophy)\b/i;
+const NOT_MAIN_EVENT =
+  /qualifier|regional|league 2|challenge|under-?19|\bu19\b/i;
+const isIccEvent = (name) => ICC_EVENT.test(name) && !NOT_MAIN_EVENT.test(name);
+
+// The ICC event India play next, or are playing: found by name among India's fixtures
+// and recent results, so each one is picked up without naming it. Its dates and every
+// match come from the series' own page. Null when India have none ahead.
+export async function tournament(now = Date.now()) {
+  const [ahead, done] = await Promise.allSettled([
+    teamFixtures(INDIA_TEAM),
+    teamFixtures(INDIA_TEAM, "results"),
+  ]);
+  if (ahead.status === "rejected" && done.status === "rejected")
+    throw ahead.reason;
+  const seen = new Map();
+  for (const m of [ahead, done].flatMap((r) =>
+    r.status === "fulfilled" ? r.value : [],
+  ))
+    if (m.seriesId && isIccEvent(m.series) && !seen.has(m.seriesId))
+      seen.set(m.seriesId, m.series);
+  const events = [];
+  for (const [id, name] of seen) {
+    const fixtures = (await seriesFixtures(id)).sort(
+      (a, b) => (a.start ?? 0) - (b.start ?? 0),
+    );
+    if (!fixtures.length) continue;
+    const start = fixtures[0].start;
+    // A match's start plus a day covers its end; the last match ends the event.
+    const end = (fixtures.at(-1).start ?? start) + 864e5;
+    if (end >= now) events.push({ id, name, start, end, fixtures });
+  }
+  events.sort((a, b) => a.start - b.start);
+  return { asOf: Date.now(), event: events[0] ?? null };
+}
+
 // A team's fixtures ahead and its latest results, for any Cricbuzz team id: India,
 // another country, or an IPL side.
 export async function teamSchedule(id) {
@@ -1016,6 +1054,7 @@ export const parse = {
   seriesFixtures: seriesFixturesFrom,
   leagueSeries: leagueSeriesFrom,
   archiveSeries: archiveSeriesFrom,
+  isIccEvent,
   pointsTable: pointsTableFrom,
   iplSeries: iplSeriesFrom,
   match: matchFrom,

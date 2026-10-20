@@ -48,10 +48,11 @@ const browser = await chromium.launch({
 });
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 // Follow an IPL side, so the recording has a team's fixtures and last season's table.
-await page.addInitScript(
-  (t) => localStorage.setItem("crease-team", t),
-  JSON.stringify(FOLLOWED),
-);
+await page.addInitScript((t) => {
+  localStorage.setItem("crease-team", t);
+  // The World Cup tab always on, so the ICC event and its tables are recorded.
+  localStorage.setItem("crease-wc", "on");
+}, JSON.stringify(FOLLOWED));
 const api = {};
 page.on("response", async (res) => {
   const url = new URL(res.url());
@@ -79,7 +80,7 @@ const clickIf = async (selector) => {
   await page.waitForTimeout(3000);
 };
 
-for (const tab of ["#now", "#india", "#ipl", "#all"]) await visit(tab);
+for (const tab of ["#now", "#india", "#ipl", "#wc", "#all"]) await visit(tab);
 for (const m of Object.values(pick))
   for (const section of ["live", "scorecard", "squads", "info"]) {
     await visit(`#m/${m.id}/${section}`);

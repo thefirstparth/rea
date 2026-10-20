@@ -1,12 +1,12 @@
-// Crease client. Hash routes: #now #india #ipl #all, #india/results (the India tab at its
-// results), and #m/{id}/{live|scorecard|squads|info}.
+// Crease client. Hash routes: #now #india #ipl #wc (an ICC event) #all, #india/results
+// (the India tab at its results), and #m/{id}/{live|scorecard|squads|info}.
 // One poll loop refreshes whatever the current route shows; renders are morphed into the DOM
 // so live updates keep scroll, focus, images and open sections.
 
 import { reviewLabel, snapshot, step } from "./alerts.js";
 
 const POLL_MS = 15000;
-const LIST_TABS = ["now", "india", "ipl", "all"];
+const LIST_TABS = ["now", "india", "ipl", "wc", "all"];
 const MATCH_TABS = ["live", "scorecard", "squads", "info"];
 
 const S = {
@@ -26,6 +26,8 @@ const S = {
   ciComm: new Map(), // id -> { items, olderPage, older, busy, error }
   tables: new Map(), // series id -> { asOf, groups }: points tables
   tableErr: new Map(),
+  tour: null, // { asOf, event }: the ICC event India play next (event null: none)
+  tourErr: null,
   team: new Map(), // team id -> { ahead, results }: the followed team's fixtures
   teamErr: new Map(),
   sched: null, // { asOf, india: fixtures, ipl: { name, start, end, fixtures } }
@@ -53,6 +55,33 @@ try {
 } catch {
   // Storage blocked or unreadable: no team followed.
 }
+// The World Cup tab: "auto" (around the event), "on" or "off". Kept in the browser.
+let wcMode = "auto";
+try {
+  const w = localStorage.getItem("crease-wc");
+  if (w === "on" || w === "off") wcMode = w;
+} catch {
+  // Storage blocked: automatic.
+}
+
+// Whether the ICC event's tab shows: always when on; automatically from two weeks
+// before its first match until two days after its last.
+const WC_LEAD = 14 * 864e5;
+const WC_TAIL = 2 * 864e5;
+function wcShown() {
+  const ev = S.tour?.event;
+  if (!ev || wcMode === "off") return false;
+  if (wcMode === "on") return true;
+  const now = Date.now();
+  return now >= ev.start - WC_LEAD && now <= ev.end + WC_TAIL;
+}
+// "World Cup" for either World Cup; the event's own name otherwise.
+const wcLabel = () =>
+  /world cup/i.test(S.tour?.event?.name ?? "")
+    ? "World Cup"
+    : (S.tour?.event?.name.replace(/^ICC (Men's )?|\s*\d{4}$/g, "") ??
+      "World Cup");
+
 const isFav = (m) =>
   !!fav && [m.t1?.id, m.t2?.id].some((id) => String(id) === String(fav.id));
 
@@ -497,13 +526,20 @@ async function poll(force) {
   view.setAttribute("aria-busy", "true");
   const jobs = [];
   if (r.kind === "list" || !S.list) jobs.push(loadList());
-  // Tables and the followed team are found from the schedule: they load once it has.
+  // Tables and the followed team are found from the schedule and the ICC event: they
+  // load once those have.
   const sched =
     r.kind === "list" && r.tab !== "all" && schedStale() ? loadSched() : null;
   if (sched) jobs.push(sched);
-  if (r.kind === "list" && (r.tab === "ipl" || (r.tab === "now" && fav)))
+  const tour =
+    r.kind === "list" && wcMode !== "off" && tourStale() ? loadTour() : null;
+  if (tour) jobs.push(tour);
+  if (
+    r.kind === "list" &&
+    (r.tab === "ipl" || r.tab === "wc" || (r.tab === "now" && fav))
+  )
     jobs.push(
-      Promise.resolve(sched).then(() => Promise.allSettled(listExtras(r))),
+      Promise.all([sched, tour]).then(() => Promise.allSettled(listExtras(r))),
     );
   if (r.kind === "match") jobs.push(...matchJobs(r, force));
   if (alertsOn && r.kind === "match") jobs.push(loadList());
@@ -696,11 +732,27 @@ async function loadSched() {
   }
 }
 
+// The ICC event changes slowly between its matches; the table and live scores carry
+// the rest.
+const tourStale = () => !S.tour || Date.now() - S.tour.asOf > 30 * 60000;
+
+async function loadTour() {
+  try {
+    S.tour = await api("/api/tournament");
+    S.tourErr = null;
+  } catch (e) {
+    S.tourErr = e.message;
+  }
+}
+
 // Points tables change after each match of a running competition, rarely otherwise.
 const tableDue = (id) => {
   const t = S.tables.get(id);
   if (!t || S.tableErr.has(id)) return true;
-  const running = iplPhase().mode === "season";
+  const ev = S.tour?.event;
+  const running =
+    iplPhase().mode === "season" ||
+    (ev && String(ev.id) === String(id) && ev.start <= Date.now());
   return Date.now() - t.asOf > (running ? 5 : 6 * 60) * 60000;
 };
 
@@ -733,6 +785,7 @@ function listExtras(r) {
   const jobs = [];
   const tables = new Set();
   if (r.tab === "ipl") tables.add(iplTableId());
+  if (r.tab === "wc") tables.add(S.tour?.event?.id);
   if (fav?.ipl && iplPhase().mode === "off") tables.add(S.sched?.iplLast?.id);
   if (r.tab === "now" && fav && teamDue(fav.id)) jobs.push(loadTeam(fav.id));
   for (const id of tables) if (id && tableDue(id)) jobs.push(loadTable(id));
@@ -915,6 +968,10 @@ async function toggleAlerts() {
 function pick(tab) {
   const all = S.list?.matches ?? [];
   if (tab === "all") return all;
+  if (tab === "wc")
+    return all.filter(
+      (m) => S.tour?.event && String(m.seriesId) === String(S.tour.event.id),
+    );
   if (tab === "now") return all.filter((m) => m.tags.length || isFav(m));
   return all.filter((m) => m.tags.includes(tab));
 }
@@ -1076,6 +1133,7 @@ const IDLE = {
 
 function listView(tab) {
   if (tab === "all") return allLiveView();
+  if (tab === "wc") return tournamentView();
   if (tab === "now") return homeView();
   if (tab === "india") return indiaView();
   return iplView();
@@ -1090,6 +1148,7 @@ const liveIn = (tab) =>
 // Home's heading depends on the data ("Live now" or "Up next"): none until it loads,
 // so it never flips from one to the other.
 function headingOf(tab) {
+  if (tab === "wc") return wcLabel();
   if (tab !== "now") return TITLES[tab];
   if (!S.list) return "";
   return liveIn("now").length ? TITLES.now : "Up next";
@@ -1193,6 +1252,61 @@ function indiaView() {
   return html + foot();
 }
 
+// An ICC event: a countdown before it, live matches, India's path, the groups, the
+// full schedule and results.
+function tournamentView() {
+  const ev = S.tour?.event;
+  let html = `<div class="ph" data-k="ph"><h1>${esc(wcLabel())}</h1><p>${esc(ev?.name ?? "ICC events India play in")}</p></div>`;
+  if (!S.tour)
+    return (
+      html + (S.tourErr ? errorCard(S.tourErr, "the tournament") : skeleton())
+    );
+  if (!ev)
+    return (
+      html +
+      empty(
+        "No ICC event ahead",
+        "This tab fills in when India's next World Cup or Champions Trophy is listed.",
+      ) +
+      foot()
+    );
+  const now = Date.now();
+  const live = pick("wc").filter((m) => m.phase === "live");
+  html += liveSection(live);
+  // The live list's copy of a match is fresher than the series page's.
+  const fresh = new Map(pick("wc").map((m) => [String(m.id), m]));
+  const all = ev.fixtures.map((m) => fresh.get(String(m.id)) ?? m);
+  if (ev.start > now)
+    html += `<div class="sec" data-k="ih"><span>Starts</span></div>
+      <div class="card season" data-k="season">
+        <div class="meta"><span class="tag">ICC</span><span>${esc(ev.name)}</span></div>
+        <div class="when"><span class="cd">${esc(countdown(ev.start, false))}</span><span>to go</span></div>
+        <div class="kv" style="border:0;padding:8px 0 0"><span class="lbl">Dates</span>${esc(dateRange(ev.start, ev.end - 864e5))}</div>
+        <div class="kv" style="border:0;padding:8px 0 0"><span class="lbl">Matches</span>${all.length}</div>
+      </div>`;
+  const india = all.filter(
+    (m) => m.tags.includes("india") && m.phase !== "done",
+  );
+  if (india.length)
+    html += `<div class="sec" data-k="wih"><span>India's matches</span></div><div class="list" data-k="wil">${fixtureList(india)}</div>`;
+  html += tableSection(
+    ev.id,
+    "Groups",
+    (g) => /^group/i.test(g.name) || g.teams.some((t) => t.played),
+  );
+  const ahead = all.filter((m) => m.phase === "upcoming");
+  if (ahead.length) {
+    const key = `wc${ev.id}`;
+    html += `<div class="list" data-k="wal"><details class="sr" data-k="was" data-series="${esc(key)}"${S.openSeries.has(key) ? " open" : ""}>
+      <summary><div><div class="nm">Full schedule</div><div class="sub">${ahead.length} match${ahead.length > 1 ? "es" : ""} to play</div></div><div class="nx"><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></div></summary>
+      ${fixtureList(ahead)}</details></div>`;
+  }
+  const done = all.filter((m) => m.phase === "done").sort(byStartDesc);
+  if (done.length)
+    html += `<div class="sec" data-k="wrh"><span>Results</span></div><div class="list" data-k="wrl">${done.map(row).join("")}</div>`;
+  return html + foot();
+}
+
 // The IPL season now, or between seasons the next one's start and how the last ended.
 // A season counts as running from its first match to a few days after its last.
 const SEASON_GRACE = 3 * 864e5;
@@ -1292,7 +1406,7 @@ function iplOffCard(team) {
 
 // A competition's points table: one card per group, the qualifying places above a
 // line, the followed team marked. Tapping a team follows it.
-function tableSection(id, title) {
+function tableSection(id, title, keep = () => true) {
   const t = S.tables.get(id);
   if (!t)
     return S.tableErr.has(id)
@@ -1300,9 +1414,10 @@ function tableSection(id, title) {
       : skeleton(1);
   // Following a team from here remembers whether it is an IPL side.
   const ipl = [S.sched?.ipl?.id, S.sched?.iplLast?.id].includes(id);
-  return t.groups
+  const groups = t.groups.filter(keep);
+  return groups
     .map((g, gi) => {
-      const name = t.groups.length > 1 ? g.name : title;
+      const name = groups.length > 1 ? g.name : title;
       const rows = g.teams
         .map((x, i) => {
           const me = fav && String(fav.id) === String(x.id);
@@ -1313,7 +1428,7 @@ function tableSection(id, title) {
           ]
             .filter(Boolean)
             .join(" ");
-          return `<tr${cls ? ` class="${cls}"` : ""}><td class="n pos">${i + 1}</td><td><button class="tm" type="button" data-act="follow" data-team="${esc(JSON.stringify({ id: x.id, name: x.name, short: x.short, flag: x.flag, ipl }))}" aria-pressed="${me}" aria-label="${esc(`${me ? "Following" : "Follow"} ${x.name}`)}">${flag(x)}<span class="who">${esc(x.short)}</span><svg class="star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg></button>${x.form.length ? `<span class="form" title="Last ${x.form.length}, latest first">${x.form.map((f) => `<i class="${f}">${f}</i>`).join("")}</span>` : ""}</td><td class="n">${x.played}</td><td class="n">${x.won}</td><td class="n">${x.lost}</td><td class="n">${x.nr + x.tied}</td><td class="n">${esc(x.nrr)}</td><td class="n hi">${x.points}</td></tr>`;
+          return `<tr${cls ? ` class="${cls}"` : ""}><td class="n pos">${i + 1}</td><td>${/^TBC|\(/.test(x.name) ? `<span class="tm">${flag(x)}<span class="who">${esc(x.short || x.name)}</span></span>` : `<button class="tm" type="button" data-act="follow" data-team="${esc(JSON.stringify({ id: x.id, name: x.name, short: x.short, flag: x.flag, ipl }))}" aria-pressed="${me}" aria-label="${esc(`${me ? "Following" : "Follow"} ${x.name}`)}">${flag(x)}<span class="who">${esc(x.short)}</span><svg class="star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg></button>`}${x.form.length ? `<span class="form" title="Last ${x.form.length}, latest first">${x.form.map((f) => `<i class="${f}">${f}</i>`).join("")}</span>` : ""}</td><td class="n">${x.played}</td><td class="n">${x.won}</td><td class="n">${x.lost}</td><td class="n">${x.nr + x.tied}</td><td class="n">${esc(x.nrr)}</td><td class="n hi">${x.points}</td></tr>`;
         })
         .join("");
       return `<div class="sec" data-k="pth${gi}"><span>${esc(name)}</span>${g.qualify ? `<small>Top ${g.qualify} go through</small>` : ""}</div>
@@ -2450,7 +2565,15 @@ function render() {
   );
 
   const tabs = $("#tabs");
-  const idx = r.kind === "list" ? LIST_TABS.indexOf(r.tab) : -1;
+  const wcTab = tabs.querySelector('a[data-tab="wc"]');
+  wcTab.hidden = !wcShown();
+  $("#wcLabel").textContent = wcLabel();
+  const shown = [...tabs.querySelectorAll("a:not([hidden])")].map(
+    (a) => a.dataset.tab,
+  );
+  tabs.style.setProperty("--n", shown.length);
+  tabs.classList.toggle("five", shown.length > 4);
+  const idx = r.kind === "list" ? shown.indexOf(r.tab) : -1;
   tabs.classList.toggle("none", idx < 0);
   if (idx >= 0) tabs.style.setProperty("--ti", idx);
   for (const a of tabs.querySelectorAll("a")) {
@@ -2667,6 +2790,7 @@ $("#settingsBtn").addEventListener("click", () => {
   ).checked = true;
   sheet.querySelector(`input[name=theme][value="${themeChoice()}"]`).checked =
     true;
+  sheet.querySelector(`input[name=wc][value="${wcMode}"]`).checked = true;
   fillTeamSelect();
   openSheet("#settingsSheet");
 });
@@ -2677,6 +2801,16 @@ $("#settingsSheet").addEventListener("change", (e) => {
     return follow(t);
   }
   if (name === "theme") themeThisVisit = value;
+  if (name === "wc") {
+    wcMode = value;
+    try {
+      localStorage.setItem("crease-wc", value);
+    } catch {
+      // Storage blocked: the choice lasts for this visit only.
+    }
+    render();
+    refresh();
+  }
   try {
     if (name === "clock") localStorage.setItem("crease-clock", value);
     if (name === "theme")

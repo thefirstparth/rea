@@ -11,6 +11,7 @@ import {
   scorecard,
   squads,
   teamSchedule,
+  tournament,
 } from "./cricbuzz.mjs";
 import * as cricinfo from "./cricinfo.mjs";
 import { UpstreamError } from "./http.mjs";
@@ -78,6 +79,7 @@ function resolve(pathname, query) {
   if (root !== "api" || extra.length) return null;
   if (kind === "matches" && !id) return { ttl: 10, load: matches };
   if (kind === "schedule" && !id) return { ttl: 600, load: schedule };
+  if (kind === "tournament" && !id) return { ttl: 600, load: tournament };
   if (!ID.test(id ?? "")) return null;
   if (kind === "match") return matchRoute(id, sub, rest, query);
   // A competition's points table changes after each of its matches.

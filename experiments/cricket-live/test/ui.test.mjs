@@ -93,19 +93,34 @@ after(async () => {
   server?.close();
 });
 
-async function open(hash, { width = 390, height = 844, theme = "light" } = {}) {
+// `at` sets the page clock (default: when the data was recorded); `store` presets the
+// reader's choices in localStorage.
+async function open(
+  hash,
+  {
+    width = 390,
+    height = 844,
+    theme = "light",
+    at = rec.capturedAt,
+    store = {},
+  } = {},
+) {
   const context = await browser.newContext({
     viewport: { width, height },
     locale: "en-IN",
     timezoneId: "Asia/Kolkata",
   });
-  await context.addInitScript((t) => {
-    try {
-      localStorage.setItem("crease-theme", t);
-    } catch {
-      // Storage blocked: the default theme applies.
-    }
-  }, theme);
+  await context.addInitScript(
+    ([t, extra]) => {
+      try {
+        localStorage.setItem("crease-theme", t);
+        for (const [k, v] of Object.entries(extra)) localStorage.setItem(k, v);
+      } catch {
+        // Storage blocked: the defaults apply.
+      }
+    },
+    [theme, store],
+  );
   await context.route("**/*", (route) => {
     const url = new URL(route.request().url());
     if (url.host === new URL(base).host) return route.continue();
@@ -114,7 +129,7 @@ async function open(hash, { width = 390, height = 844, theme = "light" } = {}) {
     return route.abort();
   });
   const page = await context.newPage();
-  await page.clock.install({ time: new Date(rec.capturedAt) });
+  await page.clock.install({ time: new Date(at) });
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("console", (m) => {
@@ -156,6 +171,7 @@ const ROUTES = [
   "#now",
   "#india",
   "#ipl",
+  "#wc",
   "#all",
   ...[live, done, next].flatMap((id) =>
     ["live", "scorecard", "squads", "info"].map((s) => `#m/${id}/${s}`),
@@ -494,5 +510,38 @@ test(
       null,
     );
     await v.close();
+  },
+);
+
+test(
+  "the World Cup tab follows its setting: around the event, always, or off",
+  { skip },
+  async () => {
+    const ev = rec.api["/api/tournament"].body.event;
+    const wcTab = (v) => v.page.locator('#tabs a[data-tab="wc"]');
+    // Automatic, far ahead: hidden. Always: shown. Off: hidden.
+    const v = await open("#now");
+    await v.page.waitForFunction(() =>
+      document.querySelector("#tabs[data-ready]"),
+    );
+    assert.equal(await wcTab(v).isVisible(), false);
+    await v.page.locator("#settingsBtn").click();
+    await v.page.locator('input[name=wc][value="on"]').check();
+    await wcTab(v).waitFor();
+    assert.equal(
+      await v.page
+        .locator("#tabs")
+        .evaluate((t) => t.style.getPropertyValue("--n")),
+      "5",
+    );
+    await v.page.locator('input[name=wc][value="off"]').check();
+    await wcTab(v).waitFor({ state: "hidden" });
+    await v.close();
+    // Automatic, a week before the first match: shown, with the countdown on its page.
+    const w = await open("#wc", { at: ev.start - 7 * 864e5 });
+    await wcTab(w).waitFor();
+    assert.match(await w.page.locator("#view").innerText(), /7 days\s*to go/i);
+    assert.ok(await w.page.locator(".tbl.pts").count());
+    await w.close();
   },
 );

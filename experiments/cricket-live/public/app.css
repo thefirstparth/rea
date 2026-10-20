@@ -2399,6 +2399,12 @@ abbr[title] {
     gap: 6px;
     padding: 0 2px;
   }
+  /* Five tabs (an ICC event's included): smaller labels, each on one line. */
+  .tabs.five a {
+    font-size: 0.62rem;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
   /* Points tables: no-results drop out (played minus won minus lost gives them). */
   .tbl.pts td:nth-child(6),
   .tbl.pts th:nth-child(6) {

@@ -165,6 +165,17 @@
             <path class="gold" d="M10 16h4v4h-4z" /></svg
           ><span>IPL</span></a
         >
+        <!-- An ICC event's tab: shown around the event, or always / never (Settings). -->
+        <a href="#wc" data-tab="wc" hidden
+          ><svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="10" r="6.5" />
+            <path
+              d="M5.5 10h13M12 3.5c2 2 2.6 4.2 2.6 6.5S14 14.5 12 16.5M12 3.5C10 5.5 9.4 7.7 9.4 10s.6 4.5 2.6 6.5"
+            />
+            <path class="gold" d="M9 19.5h6l-.6 1.5H9.6z" />
+            <path d="M12 16.5v3" /></svg
+          ><span id="wcLabel">World Cup</span></a
+        >
         <a href="#all" data-tab="all"
           ><svg viewBox="0 0 24 24" aria-hidden="true">
             <g transform="rotate(40 11 12)">
@@ -242,6 +253,22 @@
           ><input type="radio" name="theme" value="dark" /><span
             >Dark</span
           ></label
+        >
+      </fieldset>
+      <fieldset>
+        <legend>World Cup tab</legend>
+        <label class="opt"
+          ><input type="radio" name="wc" value="auto" /><span
+            >Automatic <small>from two weeks before to the final</small></span
+          ></label
+        >
+        <label class="opt"
+          ><input type="radio" name="wc" value="on" /><span
+            >Always show</span
+          ></label
+        >
+        <label class="opt"
+          ><input type="radio" name="wc" value="off" /><span>Off</span></label
         >
       </fieldset>
       <fieldset>

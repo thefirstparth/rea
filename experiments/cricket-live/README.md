@@ -61,6 +61,7 @@ event is found from the same fixture.
 | `GET /api/match/:id/scorecard`             | `/live-cricket-scorecard/:id/x` page, `scoreCard` in the RSC payload                                                                                                                                          | 10s                                   |
 | `GET /api/schedule`                        | India's team schedule and results pages (team 2), the league schedule page, the IPL series page, this and last year's series archive (`/cricket-scorecard-archives/:year`, for last IPL season and its final) | 30m (league schedule 6h, archive 24h) |
 | `GET /api/series/:id/table`                | `/cricket-series/:id/x/points-table` page, `pointsTableData` for that series id                                                                                                                               | 5m                                    |
+| `GET /api/tournament`                      | the ICC event (World Cup, T20 World Cup, Champions Trophy) found by name in India's schedule and results, with every match from its series page                                                               | 10m                                   |
 | `GET /api/team/:id`                        | `/cricket-team/x/:id/schedule` and `/results` pages, for any team (a country or an IPL side)                                                                                                                  | 30m                                   |
 | `GET /api/match/:id/squads`                | `/cricket-match-squads/:id/x` page, `team1`/`team2` in the RSC payload                                                                                                                                        | 60s                                   |
 
@@ -170,7 +171,7 @@ first-`matchInfo` lookup is put back.
   choice is remembered in `localStorage`.
 - **Settings** (the gear): 12- or 24-hour time (default: the locale's), and
   light, dark or the device's theme. **About & privacy** (`/about.html`) says
-  where the data comes from, what is stored (five `localStorage` keys, no
+  where the data comes from, what is stored (six `localStorage` keys, no
   cookies, no analytics) and which other sites the browser contacts.
 - Every time on screen names its zone ("12:30 pm IST"); the match Info tab adds
   India's time only for readers elsewhere. Dates are in English, like the rest
@@ -207,6 +208,11 @@ first-`matchInfo` lookup is put back.
   season's dates as Cricbuzz lists them, and the last finished season (found by
   name in Cricbuzz's yearly archive) with its champion and final table. Nothing
   names a year: each season is found from the data.
+- **World Cup**: an ICC men's event India play in (found by name, qualifiers left
+  out) gets a fifth tab: a countdown, India's matches, the group tables, the full
+  schedule and results. Settings → World Cup tab: Automatic (default: from two
+  weeks before its first match to two days after its last), Always, or Off,
+  stored in `crease-wc`. The next event is picked up the same way, without code.
 - **Following a team**: tap a team in a points table, or pick one in Settings
   (IPL sides from the tables, countries from the known fixtures). Its live match
   joins Now, its next fixture shows as "Your team" (from its Cricbuzz team page),

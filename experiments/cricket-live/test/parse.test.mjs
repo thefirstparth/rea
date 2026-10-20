@@ -359,6 +359,22 @@ test("points tables: a finished league in order, a group tournament before a bal
   assert.equal(cb.pointsTable(read("cb-points-ipl.flight.txt"), 13289), null);
 });
 
+test("ICC events are told apart from their qualifiers by name", () => {
+  for (const name of [
+    "ICC Men's Cricket World Cup 2027",
+    "ICC Men's T20 World Cup 2026",
+    "ICC Champions Trophy 2029",
+  ])
+    assert.ok(cb.isIccEvent(name), name);
+  for (const name of [
+    "ICC Men's T20 World Cup Asia Sub Regional Qualifier B 2026",
+    "ICC Men's Cricket World Cup League 2 2027",
+    "ICC Under-19 Men's Cricket World Cup 2028",
+    "India tour of New Zealand 2026",
+  ])
+    assert.ok(!cb.isIccEvent(name), name);
+});
+
 test("the series archive lists finished seasons with their dates", () => {
   const all = cb.archiveSeries(read("cb-archive.flight.txt"));
   const ipl = all.find((x) => x.name === "Indian Premier League 2026");
