@@ -965,6 +965,34 @@ details.sr > summary {
   align-items: center;
   padding: 12px 14px;
 }
+/* A recent series' standing in one line: "ODIs IND 2–1 · T20Is 2–2 · 1 NR", India
+   ahead in the accent colour. Its chips show once it is opened. */
+details.sr .stand {
+  margin-top: 3px;
+  font-size: var(--t-meta);
+  color: var(--muted);
+}
+details.sr .stand-l {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+}
+details.sr .stand b {
+  margin-left: 2px;
+  font-family: var(--num);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+details.sr .stand b.w {
+  color: var(--accent);
+}
+.sr-chips {
+  padding: 0 14px 6px;
+}
+.sr-chips .rcr {
+  margin-top: 0;
+}
 /* A series ahead leads with its start date as a calendar tile. */
 details.sr.ahead > summary {
   grid-template-columns: 46px 1fr auto;
@@ -1844,13 +1872,6 @@ details.ci.note[open] .more-note {
   vertical-align: 1px;
   animation: pulse 1.6s ease-in-out infinite;
 }
-a.rc {
-  transition: transform 0.2s var(--spring-fast);
-}
-a.rc:active {
-  transform: scale(0.96);
-}
-
 /* A section a link lands on (#india/results) clears the top bar when scrolled to. */
 #results {
   scroll-margin-top: calc(var(--safe-t) + 60px);

@@ -198,7 +198,9 @@ first-`matchInfo` lookup is put back.
   whenever the ground isn't on India's time.
 - **Series results**: India's games as chips, a row per format: match number and
   the winner's short name, NR or Draw, the date of one to come; the standing per
-  format ("ODIs: IND won 2–1") replaces a single mixed tally.
+  format ("ODIs: IND won 2–1") replaces a single mixed tally. On the India tab
+  each recent series is one closed line ("ODIs IND 2–1 · T20Is 2–2 · 1 NR") that
+  opens to its chips and matches; each series ahead leads with a calendar tile.
 - **Alerts** (the bell): for India and IPL matches, a notification when a match
   starts, for each wicket (with the dismissal), when a decision is reviewed and
   again with its outcome (the outcome replaces the first), for a batter's fifty
