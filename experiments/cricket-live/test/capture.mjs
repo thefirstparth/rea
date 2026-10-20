@@ -142,7 +142,10 @@ await save(
   "cb-ipl-series.flight.txt",
   await page(`/cricket-series/${PAST_IPL_SERIES}/x/matches`, ["matchDetails"]),
 );
-await save("cb-series-calendar.json", await json(`${CB}/api/series/schedule`));
+await save(
+  "cb-series-league.flight.txt",
+  await page("/cricket-schedule/series/league", ["seriesScheduleData"]),
+);
 
 // --- Cricinfo (ESPN API), cut down to the fields the adapter reads.
 const panel = await json(`${CI}/scorepanel`);

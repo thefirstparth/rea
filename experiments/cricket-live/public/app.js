@@ -2,6 +2,8 @@
 // One poll loop refreshes whatever the current route shows; renders are morphed into the DOM
 // so live updates keep scroll, focus, images and open sections.
 
+import { snapshot, step } from "./alerts.js";
+
 const POLL_MS = 15000;
 const LIST_TABS = ["now", "india", "ipl", "all"];
 const MATCH_TABS = ["live", "scorecard", "squads", "info"];
@@ -34,6 +36,19 @@ try {
 }
 const useCricinfo = (id) => commSrc === "ci" && S.ci.get(id)?.available;
 
+// Alerts for India and IPL matches: on only after the browser grants permission.
+const canAlert = "Notification" in window && "serviceWorker" in navigator;
+let alertsOn = false;
+try {
+  alertsOn =
+    canAlert &&
+    Notification.permission === "granted" &&
+    localStorage.getItem("crease-alerts") === "on";
+} catch {
+  // Storage blocked: alerts start off.
+}
+const alertState = new Map(); // match id -> step() state
+
 const $ = (sel) => document.querySelector(sel);
 const view = $("#view");
 
@@ -65,18 +80,39 @@ const dayFmt = new Intl.DateTimeFormat(undefined, {
   day: "numeric",
   month: "short",
 });
-const timeFmt = new Intl.DateTimeFormat(undefined, {
-  hour: "2-digit",
-  minute: "2-digit",
-});
-const fullFmt = new Intl.DateTimeFormat(undefined, {
-  weekday: "long",
-  day: "numeric",
-  month: "long",
-  hour: "2-digit",
-  minute: "2-digit",
-  timeZoneName: "short",
-});
+// Clock: the reader's choice of 12- or 24-hour times, else their locale's own.
+// Every time on screen goes through these formatters.
+let h12 = !!new Intl.DateTimeFormat(undefined, {
+  hour: "numeric",
+}).resolvedOptions().hour12;
+try {
+  const c = localStorage.getItem("crease-clock");
+  if (c === "12" || c === "24") h12 = c === "12";
+} catch {
+  // Storage blocked: keep the locale's clock.
+}
+let timeFmt, fullFmt, istFmt;
+function setClock(twelve) {
+  h12 = twelve;
+  const clock = {
+    hour: twelve ? "numeric" : "2-digit",
+    minute: "2-digit",
+    hourCycle: twelve ? "h12" : "h23",
+  };
+  timeFmt = new Intl.DateTimeFormat(undefined, clock);
+  fullFmt = new Intl.DateTimeFormat(undefined, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZoneName: "short",
+    ...clock,
+  });
+  istFmt = new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    ...clock,
+  });
+}
+setClock(h12);
 
 function dayLabel(ts) {
   const d = new Date(ts);
@@ -303,7 +339,8 @@ async function refresh(force = false) {
     await job;
   } finally {
     if (inflight === job) inflight = null;
-    if (!document.hidden) schedule();
+    // With alerts on, a background tab keeps polling (browsers may slow it down).
+    if (!document.hidden || alertsOn) schedule();
   }
 }
 
@@ -318,7 +355,9 @@ async function poll(force) {
   if (r.kind === "list" && r.tab !== "all" && schedStale())
     jobs.push(loadSched());
   if (r.kind === "match") jobs.push(...matchJobs(r, force));
+  if (alertsOn && r.kind === "match") jobs.push(loadList());
   await Promise.allSettled(jobs);
+  if (alertsOn) await checkAlerts(r);
   if (!--S.busy) spin.classList.remove("spin");
   render();
 }
@@ -497,6 +536,77 @@ function commentary(id) {
   return out.sort((a, b) => b.ts - a.ts);
 }
 
+// ---------- alerts
+
+const followed = () =>
+  (S.list?.matches ?? []).filter(
+    (m) => m.tags.length && (m.phase === "live" || m.phase === "upcoming"),
+  );
+
+// Wickets and milestones need each live followed match's own payload; the open match
+// already has a fresh one from this poll.
+async function checkAlerts(r) {
+  const open = r.kind === "match" ? r.id : null;
+  const live = followed().filter(
+    (m) => m.phase === "live" && String(m.id) !== open,
+  );
+  await Promise.allSettled(live.map((m) => loadMatch(String(m.id))));
+  for (const m of followed()) {
+    const id = String(m.id);
+    const { state, events } = step(
+      alertState.get(id),
+      snapshot(m, S.match.get(id)),
+    );
+    alertState.set(id, state);
+    for (const ev of events) showAlert(ev);
+  }
+}
+
+async function showAlert(ev) {
+  const reg = await navigator.serviceWorker.getRegistration();
+  if (!reg) return;
+  await reg.showNotification(ev.title, {
+    body: ev.body,
+    tag: ev.tag,
+    icon: "/icon.svg",
+    data: { url: `/#m/${ev.id}/live` },
+  });
+}
+
+function setAlerts(on) {
+  alertsOn = on;
+  $("#alerts").setAttribute("aria-pressed", String(on));
+  try {
+    localStorage.setItem("crease-alerts", on ? "on" : "off");
+  } catch {
+    // Storage blocked: the choice lasts for this visit only.
+  }
+}
+
+const say = (text) => ($("#announce").textContent = text);
+
+async function toggleAlerts() {
+  if (alertsOn) {
+    setAlerts(false);
+    return say("Alerts off.");
+  }
+  const permission =
+    Notification.permission === "default"
+      ? await Notification.requestPermission()
+      : Notification.permission;
+  if (permission !== "granted")
+    return say(
+      "Notifications are blocked for Crease. Allow them in your browser's site settings.",
+    );
+  await navigator.serviceWorker.register("/sw.js");
+  alertState.clear();
+  setAlerts(true);
+  say(
+    "Alerts on while Crease is open: match starts, wickets, fifties, hundreds and five-fors in India and IPL matches.",
+  );
+  refresh(true);
+}
+
 // ---------- list views
 
 function pick(tab) {
@@ -533,19 +643,27 @@ function statusTrack(m) {
   return `<span>${esc(m.state === "Complete" ? "Result" : m.state)}</span><span>${m.start ? esc(dayLabel(m.start)) : ""}</span>`;
 }
 
-// Inside a series group the series name is already shown, so the venue takes its place.
-function row(m, inSeries = false) {
-  const place = m.venue?.city || m.venue?.ground || "";
+function row(m) {
   const why =
     m.phase !== "upcoming"
       ? m.status
-      : [m.desc, inSeries ? place : m.series].filter(Boolean).join(" · ");
+      : [m.desc, m.series].filter(Boolean).join(" · ");
   // Before the toss there is no commentary yet; open on match info.
   const tab = m.phase === "upcoming" ? "info" : "live";
   return `<a class="mr" data-k="r${m.id}" href="#m/${m.id}/${tab}">
     <div class="st">${statusTrack(m)}</div>
     <div class="sides">${side(m, m.t1, m.s1)}${side(m, m.t2, m.s2)}</div>
     <div class="why${m.phase === "live" ? " on" : ""}">${esc(why)}</div>
+  </a>`;
+}
+
+// A fixture inside its series group: the header already names the series, so one line
+// says which match and where, and one says who plays. No scores yet, so no score column.
+function fixtureRow(m) {
+  const place = m.venue?.city || m.venue?.ground || "";
+  return `<a class="mr fxr" data-k="r${m.id}" href="#m/${m.id}/info">
+    <div class="st">${statusTrack(m)}</div>
+    <div><div class="nm">${esc([m.desc, place].filter(Boolean).join(" · "))}</div><div class="why">${esc(`${m.t1.name} v ${m.t2.name}`)}</div></div>
   </a>`;
 }
 
@@ -845,8 +963,15 @@ function seriesRow(g) {
   return `<details class="sr" data-k="sr${esc(g.id)}" data-series="${esc(g.id)}"${open ? " open" : ""}>
     <summary><div><div class="nm">${esc(g.name)}</div><div class="sub">${esc(dateRange(first.start, last.start))} · ${esc(composition(g.fixtures))} to play</div>${fixtureMarks(g.fixtures)}</div>
       <div class="nx">${first.start ? esc(dayLabel(first.start)) : ""}<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></div></summary>
-    ${g.fixtures.map((m) => row(m, true)).join("")}
+    ${g.fixtures.map(fixtureRow).join("")}
   </details>`;
+}
+
+// A Cricinfo team's crest; its abbreviation when Cricinfo has no logo.
+function teamLogo(x) {
+  if (x.logo)
+    return `<img class="flag logo" src="${esc(x.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer">`;
+  return `<span class="flag mono" aria-hidden="true">${esc(x.short ?? "")}</span>`;
 }
 
 // The last IPL result Cricinfo lists, usually the final.
@@ -856,12 +981,7 @@ function iplLatest() {
   const rows = m.sides
     .map(
       (x) =>
-        `<div class="side${m.winner && !x.won ? " lose" : ""}"><span class="flag mono" aria-hidden="true">${esc(
-          x.name
-            .split(/\s+/)
-            .map((w) => w[0])
-            .join(""),
-        )}</span><span class="nm">${esc(x.name)}</span><span class="sc" style="font-size:1rem">${esc(x.score.split(" (")[0])}</span></div>${x.score.includes(" (") ? `<div class="dim" style="font-size:var(--t-cap);margin:-2px 0 2px 30px">${esc(x.score.slice(x.score.indexOf(" (") + 1))}</div>` : ""}`,
+        `<div class="side${m.winner && !x.won ? " lose" : ""}">${teamLogo(x)}<span class="nm">${esc(x.name)}</span><span class="sc" style="font-size:1rem">${esc(x.score.split(" (")[0])}</span></div>${x.score.includes(" (") ? `<div class="dim" style="font-size:var(--t-cap);margin:-2px 0 2px 30px">${esc(x.score.slice(x.score.indexOf(" (") + 1))}</div>` : ""}`,
     )
     .join("");
   const line = [
@@ -985,12 +1105,6 @@ function matchTabs(id, tab, live) {
     )
     .join("")}</nav>`;
 }
-
-const istFmt = new Intl.DateTimeFormat("en-IN", {
-  timeZone: "Asia/Kolkata",
-  hour: "numeric",
-  minute: "2-digit",
-});
 
 // Before Cricbuzz opens the match centre, show what the fixture list knows.
 // The page fills in on its own once the match centre opens (the poll keeps trying).
@@ -1245,7 +1359,7 @@ function infoTab(id, d) {
     [
       "Starts",
       h.start
-        ? fullFmt.format(h.start) + (h.startIST ? ` (${h.startIST} IST)` : "")
+        ? `${fullFmt.format(h.start)} (${istFmt.format(h.start)} IST)`
         : "",
     ],
     [
@@ -1370,10 +1484,40 @@ addEventListener(
   { passive: true },
 );
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden) clearTimeout(timer);
-  else refresh();
+  if (!document.hidden) refresh();
+  else if (!alertsOn) clearTimeout(timer);
 });
+if (canAlert) {
+  $("#alerts").hidden = false;
+  $("#alerts").setAttribute("aria-pressed", String(alertsOn));
+  $("#alerts").addEventListener("click", toggleAlerts);
+  if (alertsOn) navigator.serviceWorker.register("/sw.js");
+  // A tapped alert asks this page to open its match.
+  navigator.serviceWorker.addEventListener("message", (e) => {
+    if (e.data?.type === "open" && /^#m\/\d+/.test(e.data.hash))
+      location.hash = e.data.hash;
+  });
+}
 $("#refresh").addEventListener("click", () => refresh(true));
+function showClock() {
+  const btn = $("#clock");
+  btn.textContent = h12 ? "12h" : "24h";
+  btn.setAttribute(
+    "aria-label",
+    `Clock: ${h12 ? "12" : "24"}-hour. Switch to ${h12 ? "24" : "12"}-hour`,
+  );
+}
+showClock();
+$("#clock").addEventListener("click", () => {
+  setClock(!h12);
+  try {
+    localStorage.setItem("crease-clock", h12 ? "12" : "24");
+  } catch {
+    // Storage blocked: the choice lasts for this visit only.
+  }
+  showClock();
+  render();
+});
 $("#back").addEventListener("click", () => {
   if (cameFromList && history.length > 1) history.back();
   else location.hash = "#now";

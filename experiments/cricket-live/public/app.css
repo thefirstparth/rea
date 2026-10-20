@@ -248,7 +248,7 @@ img {
 .top-in {
   height: 48px;
   display: grid;
-  grid-template-columns: 96px 1fr 96px;
+  grid-template-columns: 136px 1fr 136px;
   align-items: center;
   padding: 0 calc(var(--gut) - 6px);
   max-width: 720px;
@@ -272,9 +272,22 @@ img {
   opacity: 1;
   transform: none;
 }
-.back {
+.top-left {
   grid-column: 1;
   grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.clock {
+  width: auto;
+  min-width: 44px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-family: var(--num);
+  font-weight: 700;
+  font-size: 0.98rem;
+  font-variant-numeric: tabular-nums;
 }
 .top-btns {
   grid-column: 3;
@@ -314,6 +327,12 @@ img {
   to {
     transform: rotate(360deg);
   }
+}
+.alerts[aria-pressed="true"] {
+  color: var(--accent);
+}
+.alerts[aria-pressed="true"] svg path:first-child {
+  fill: currentColor;
 }
 .theme svg .sun {
   display: none;
@@ -644,6 +663,13 @@ main {
   font-weight: 800;
   color: var(--muted);
 }
+/* Crests are square and transparent: fit them whole, no tile behind. */
+.flag.logo {
+  height: 22px;
+  object-fit: contain;
+  background: none;
+  box-shadow: none;
+}
 .flag.lg {
   width: 34px;
   height: 25px;
@@ -862,6 +888,29 @@ details.sr .chev {
 }
 details.sr[open] .chev {
   transform: rotate(180deg);
+}
+/* No score column, so the date gets room to stay on one line. */
+.mr.fxr {
+  grid-template-columns: 4.6rem 1fr;
+  min-height: 0;
+  padding: 10px 14px;
+}
+.fxr .st > span {
+  white-space: nowrap;
+}
+.fxr .nm {
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fxr .why {
+  margin-top: 2px;
+  font-size: var(--t-meta);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 details.sr > .mr::before {
   content: "";

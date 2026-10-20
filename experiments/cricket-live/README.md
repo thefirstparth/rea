@@ -53,14 +53,14 @@ its source's formats and normalises into the shapes the client reads. The
 server composes them: Cricbuzz match ids drive every route, and the Cricinfo
 event is found from the same fixture.
 
-| App route                                  | Cricbuzz source                                                                  | Cache                    |
-| ------------------------------------------ | -------------------------------------------------------------------------------- | ------------------------ |
-| `GET /api/matches`                         | live, recent and upcoming list pages (RSC payload) and `/api/home`               | 15s to 5m                |
-| `GET /api/match/:id`                       | `/api/mcenter/comm/:id` (header, miniscore, latest commentary)                   | 10s                      |
-| `GET /api/match/:id/commentary?inn&before` | `/api/mcenter/commentary-pagination/:id/:inn/:beforeTimestamp`                   | 60s                      |
-| `GET /api/match/:id/scorecard`             | `/live-cricket-scorecard/:id/x` page, `scoreCard` in the RSC payload             | 15s                      |
-| `GET /api/schedule`                        | India's team schedule page (team 2), `/api/series/schedule`, the IPL series page | 30m (series calendar 6h) |
-| `GET /api/match/:id/squads`                | `/cricket-match-squads/:id/x` page, `team1`/`team2` in the RSC payload           | 60s                      |
+| App route                                  | Cricbuzz source                                                                    | Cache                    |
+| ------------------------------------------ | ---------------------------------------------------------------------------------- | ------------------------ |
+| `GET /api/matches`                         | live, recent and upcoming list pages (RSC payload) and `/api/home`                 | 15s to 5m                |
+| `GET /api/match/:id`                       | `/api/mcenter/comm/:id` (header, miniscore, latest commentary)                     | 10s                      |
+| `GET /api/match/:id/commentary?inn&before` | `/api/mcenter/commentary-pagination/:id/:inn/:beforeTimestamp`                     | 60s                      |
+| `GET /api/match/:id/scorecard`             | `/live-cricket-scorecard/:id/x` page, `scoreCard` in the RSC payload               | 15s                      |
+| `GET /api/schedule`                        | India's team schedule page (team 2), the league schedule page, the IPL series page | 30m (league schedule 6h) |
+| `GET /api/match/:id/squads`                | `/cricket-match-squads/:id/x` page, `team1`/`team2` in the RSC payload             | 60s                      |
 
 | App route                                       | Cricinfo source (ESPN API)                                      | Cache |
 | ----------------------------------------------- | --------------------------------------------------------------- | ----- |
@@ -165,15 +165,31 @@ first-`matchInfo` lookup is put back.
   match, and remembers the choice in `localStorage`.
 - Light and dark themes follow the system setting, and the moon/sun button
   overrides it.
+- Times follow the device's 12- or 24-hour clock; the 12h/24h button at the
+  top left switches every time on screen, IST included, and is remembered.
 - Page tints come from a small table of team colours keyed by Cricbuzz short
   name (`TEAM_COLOR` in `public/app.js`). A match page uses India's colour when
   India play, otherwise the home side's; teams not in the table leave the page
   plain.
 - The live tab also loads the scorecard so it can show the batting side's fall
   of wickets.
+- **Alerts** (the bell): for India and IPL matches, a notification when a match
+  starts, for each wicket (with the dismissal), for a batter's fifty or hundred,
+  and for a bowler's five-for. Turning them on asks for notification permission
+  and is remembered. Detection lives in `public/alerts.js`, a pure module the
+  tests run in Node: opening the app never replays old events, and a wicket is
+  announced once even if a slower source briefly reports the old count.
+  Milestones come from the current batters' and bowlers' figures, so one reached
+  and then lost to a wicket between two polls can be missed. `public/sw.js` only
+  shows notifications and opens the match on tap; it caches nothing.
 
 ## Limits
 
+- Alerts work only while Crease is open, in a visible or background tab, or
+  as an installed app that is still running. Browsers slow background polling,
+  so alerts there can lag by a minute or more. On iPhone nothing arrives once you
+  leave the app. With alerts on, each poll also fetches every live India or IPL
+  match, not just the one on screen.
 - Both sources are unofficial, undocumented endpoints. They can change without
   notice, so the app suits personal or local use. The server caches every
   upstream call and makes at most a few requests per 15s per open match.
