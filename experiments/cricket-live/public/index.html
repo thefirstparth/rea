@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en-IN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <title>Crease · Live cricket</title>
+    <meta
+      name="description"
+      content="Live scores, ball-by-ball commentary, scorecards and squads for India and the IPL."
+    />
+    <meta name="theme-color" content="#f3f3f5" id="themeColor" />
+    <script>
+      try {
+        var t = localStorage.getItem("crease-theme");
+        if (
+          t === "dark" ||
+          (!t && matchMedia("(prefers-color-scheme: dark)").matches)
+        ) {
+          document.documentElement.dataset.theme = "dark";
+          document.getElementById("themeColor").content = "#000000";
+        }
+      } catch (e) {}
+    </script>
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Crease" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&display=swap"
+    />
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="top" id="top">
+        <div class="top-in">
+          <button
+            class="icon back"
+            id="back"
+            type="button"
+            aria-label="Back"
+            hidden
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M15 5l-7 7 7 7" />
+            </svg>
+          </button>
+          <div class="top-title" id="topTitle" aria-hidden="true"></div>
+          <div class="top-btns">
+            <button
+              class="icon theme"
+              id="theme"
+              type="button"
+              aria-label="Dark mode"
+              aria-pressed="false"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  class="moon"
+                  d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"
+                />
+                <g class="sun">
+                  <circle cx="12" cy="12" r="4" />
+                  <path
+                    d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"
+                  />
+                </g>
+              </svg>
+            </button>
+            <button
+              class="icon"
+              id="refresh"
+              type="button"
+              aria-label="Refresh"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M20 12a8 8 0 1 1-2.34-5.66" />
+                <path d="M20 4v5h-5" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </header>
+      <main id="view" tabindex="-1"></main>
+      <nav class="tabs" id="tabs" aria-label="Sections" style="--n: 4">
+        <i class="tab-pill" aria-hidden="true"></i>
+        <a href="#now" data-tab="now"
+          ><svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" />
+            <path
+              d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M5 5a10 10 0 0 0 0 14M19 5a10 10 0 0 1 0 14"
+            /></svg
+          ><span>Now</span></a
+        >
+        <a href="#india" data-tab="india"
+          ><svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 21V3.5" />
+            <path d="M5 4h14v3.2H5zM5 10.4h14v3.2H5" />
+            <circle cx="12" cy="8.8" r="1.2" /></svg
+          ><span>India</span></a
+        >
+        <a href="#ipl" data-tab="ipl"
+          ><svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8 4h8v4a4 4 0 0 1-8 0z" />
+            <path d="M8 5.5H5a3 3 0 0 0 3 4M16 5.5h3a3 3 0 0 1-3 4" />
+            <path d="M12 12v4M8.5 20h7M10 16h4v4h-4z" /></svg
+          ><span>IPL</span></a
+        >
+        <a href="#all" data-tab="all"
+          ><svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M14.6 3.6l2.8 2.8-8.9 8.9-2.8-2.8z" />
+            <path
+              d="M6.4 14.9l-2.6 2.6a1 1 0 0 0 0 1.4l1.3 1.3a1 1 0 0 0 1.4 0l2.6-2.6"
+            />
+            <circle cx="17.5" cy="17.5" r="2.6" /></svg
+          ><span>All live</span></a
+        >
+      </nav>
+    </div>
+    <div id="announce" class="vh" aria-live="polite"></div>
+    <noscript><p class="nojs">Crease needs JavaScript.</p></noscript>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
