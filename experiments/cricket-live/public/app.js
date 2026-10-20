@@ -533,19 +533,27 @@ function statusTrack(m) {
   return `<span>${esc(m.state === "Complete" ? "Result" : m.state)}</span><span>${m.start ? esc(dayLabel(m.start)) : ""}</span>`;
 }
 
-// Inside a series group the series name is already shown, so the venue takes its place.
-function row(m, inSeries = false) {
-  const place = m.venue?.city || m.venue?.ground || "";
+function row(m) {
   const why =
     m.phase !== "upcoming"
       ? m.status
-      : [m.desc, inSeries ? place : m.series].filter(Boolean).join(" · ");
+      : [m.desc, m.series].filter(Boolean).join(" · ");
   // Before the toss there is no commentary yet; open on match info.
   const tab = m.phase === "upcoming" ? "info" : "live";
   return `<a class="mr" data-k="r${m.id}" href="#m/${m.id}/${tab}">
     <div class="st">${statusTrack(m)}</div>
     <div class="sides">${side(m, m.t1, m.s1)}${side(m, m.t2, m.s2)}</div>
     <div class="why${m.phase === "live" ? " on" : ""}">${esc(why)}</div>
+  </a>`;
+}
+
+// A fixture inside its series group: the header already names the series, so one line
+// says which match and where, and one says who plays. No scores yet, so no score column.
+function fixtureRow(m) {
+  const place = m.venue?.city || m.venue?.ground || "";
+  return `<a class="mr fxr" data-k="r${m.id}" href="#m/${m.id}/info">
+    <div class="st">${statusTrack(m)}</div>
+    <div><div class="nm">${esc([m.desc, place].filter(Boolean).join(" · "))}</div><div class="why">${esc(`${m.t1.name} v ${m.t2.name}`)}</div></div>
   </a>`;
 }
 
@@ -845,7 +853,7 @@ function seriesRow(g) {
   return `<details class="sr" data-k="sr${esc(g.id)}" data-series="${esc(g.id)}"${open ? " open" : ""}>
     <summary><div><div class="nm">${esc(g.name)}</div><div class="sub">${esc(dateRange(first.start, last.start))} · ${esc(composition(g.fixtures))} to play</div>${fixtureMarks(g.fixtures)}</div>
       <div class="nx">${first.start ? esc(dayLabel(first.start)) : ""}<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></div></summary>
-    ${g.fixtures.map((m) => row(m, true)).join("")}
+    ${g.fixtures.map(fixtureRow).join("")}
   </details>`;
 }
 
