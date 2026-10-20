@@ -93,6 +93,10 @@ const schedule = await page(`/cricket-team/x/${INDIA_TEAM}/schedule`, [
   "teamMatchesData",
 ]);
 await save("cb-india-schedule.flight.txt", schedule);
+await save(
+  "cb-india-results.flight.txt",
+  await page(`/cricket-team/x/${INDIA_TEAM}/results`, ["teamMatchesData"]),
+);
 const ahead = cricbuzz
   .fixtures(schedule, "teamMatchesData")
   .filter((m) => m.phase === "upcoming")

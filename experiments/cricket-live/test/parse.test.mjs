@@ -203,6 +203,20 @@ test("IPL series page: a full season, title-cased, tagged ipl", () => {
   assert.ok(all.some((m) => m.desc === "Final" && m.phase === "done"));
 });
 
+test("India results page: completed India matches with a result line", () => {
+  const all = cb.fixtures(
+    read("cb-india-results.flight.txt"),
+    "teamMatchesData",
+  );
+  assert.ok(all.length > 0);
+  all.forEach(assertMatch);
+  for (const m of all) {
+    assert.equal(m.phase, "done");
+    assert.ok(m.tags.includes("india"), `${m.t1.name} v ${m.t2.name}`);
+    assert.ok(m.status, "result line");
+  }
+});
+
 test("next IPL season: from the league schedule, never a finished one", () => {
   const series = cb.leagueSeries(read("cb-series-league.flight.txt"));
   assert.ok(series.length > 0);

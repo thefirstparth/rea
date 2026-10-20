@@ -273,15 +273,15 @@ function fixturesFrom(flight, key) {
     .filter(Boolean);
 }
 
-// India's team page (id 2) lists fixtures about a year ahead, far beyond the
-// upcoming-matches page.
+// India's team pages (id 2): "schedule" lists fixtures about a year ahead, far beyond
+// the upcoming-matches page; "results" lists the last ten completed matches.
 const INDIA_TEAM = 2;
 const SCHEDULE_TTL = 30 * 60000;
 
-function teamFixtures(id) {
-  return cached(`team:${id}`, SCHEDULE_TTL, async () =>
+function teamFixtures(id, page = "schedule") {
+  return cached(`team:${id}:${page}`, SCHEDULE_TTL, async () =>
     fixturesFrom(
-      await getFlight(`/cricket-team/x/${id}/schedule`),
+      await getFlight(`/cricket-team/x/${id}/${page}`),
       "teamMatchesData",
     ),
   );
@@ -335,9 +335,10 @@ async function iplSeries() {
 }
 
 export async function schedule() {
-  const [ipl, india] = await Promise.allSettled([
+  const [ipl, india, results] = await Promise.allSettled([
     iplSeries(),
     teamFixtures(INDIA_TEAM),
+    teamFixtures(INDIA_TEAM, "results"),
   ]);
   if (ipl.status === "rejected" && india.status === "rejected")
     throw india.reason;
@@ -352,10 +353,20 @@ export async function schedule() {
   }
   return {
     asOf: Date.now(),
-    partial: ipl.status === "rejected" || india.status === "rejected",
+    // Which parts failed, so the app can say "couldn't load" rather than "none".
+    failed: Object.entries({ ipl, india, indiaResults: results })
+      .filter(([, r]) => r.status === "rejected")
+      .map(([part]) => part),
     india: (india.status === "fulfilled" ? india.value : [])
       .filter((m) => m.phase !== "done")
       .sort((a, b) => (a.start ?? 0) - (b.start ?? 0)),
+    // Null when the results page failed: unknown, not "no results".
+    indiaResults:
+      results.status === "fulfilled"
+        ? results.value
+            .filter((m) => m.phase === "done")
+            .sort((a, b) => (b.start ?? 0) - (a.start ?? 0))
+        : null,
     ipl: series
       ? {
           ...series,
