@@ -102,6 +102,12 @@ function phaseOf(state) {
 }
 
 const isIndia = (name) => /^India(\s|$)/.test(name || "");
+
+// The app covers men's cricket only. Cricbuzz has no gender field: women's sides
+// are named "X Women" and women's competitions say so ("Women's Premier League").
+const WOMEN = /\bwomen('?s)?\b/i;
+const isWomens = (series, a, b) =>
+  WOMEN.test(a ?? "") || WOMEN.test(b ?? "") || WOMEN.test(series ?? "");
 const isIpl = (series) => /indian premier league|\bipl\b/i.test(series || "");
 
 function tagsFor(series, a, b) {
@@ -161,6 +167,7 @@ function summary(entry) {
   const s = entry.matchScore ?? entry.match?.matchScore;
   const t1 = team(i.team1);
   const t2 = team(i.team2);
+  if (isWomens(i.seriesName, t1.name, t2.name)) return null;
   return {
     id: i.matchId,
     series: i.seriesName ?? "",
@@ -256,9 +263,9 @@ function fixturesFrom(flight, key) {
     .filter(Boolean);
 }
 
-// India men (2) and India Women (97): their pages list fixtures about a year ahead,
-// far beyond the upcoming-matches page.
-const INDIA_TEAMS = [2, 97];
+// India's team page (id 2) lists fixtures about a year ahead, far beyond the
+// upcoming-matches page.
+const INDIA_TEAM = 2;
 const SCHEDULE_TTL = 30 * 60000;
 
 function teamFixtures(id) {
@@ -301,12 +308,12 @@ async function iplSeries() {
 }
 
 export async function schedule() {
-  const [ipl, ...teams] = await Promise.allSettled([
+  const [ipl, india] = await Promise.allSettled([
     iplSeries(),
-    ...INDIA_TEAMS.map(teamFixtures),
+    teamFixtures(INDIA_TEAM),
   ]);
-  const results = [ipl, ...teams];
-  if (results.every((r) => r.status === "rejected")) throw teams[0].reason;
+  if (ipl.status === "rejected" && india.status === "rejected")
+    throw india.reason;
   const series = ipl.status === "fulfilled" ? ipl.value : null;
   let iplFixtures = [];
   if (series) {
@@ -316,13 +323,10 @@ export async function schedule() {
       // The season card still shows its dates without fixtures.
     }
   }
-  const byId = new Map();
-  for (const r of teams)
-    if (r.status === "fulfilled") for (const m of r.value) byId.set(m.id, m);
   return {
     asOf: Date.now(),
-    partial: results.some((r) => r.status === "rejected"),
-    india: [...byId.values()]
+    partial: ipl.status === "rejected" || india.status === "rejected",
+    india: (india.status === "fulfilled" ? india.value : [])
       .filter((m) => m.phase !== "done")
       .sort((a, b) => (a.start ?? 0) - (b.start ?? 0)),
     ipl: series
@@ -505,6 +509,8 @@ export async function match(id) {
       404,
     );
   const h = header(raw.matchHeader);
+  if (isWomens(h.series, h.t1.name, h.t2.name))
+    throw new UpstreamError("Crease covers men's cricket only", 404);
   return {
     asOf: Date.now(),
     refresh: h.phase === "live" ? 15000 : 0,
