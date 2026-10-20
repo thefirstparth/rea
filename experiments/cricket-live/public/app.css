@@ -19,7 +19,9 @@
   --six: #7a2fc0;
   --wkt: #c22a23;
   --extra: #9a6a00;
-  --glass: color-mix(in oklab, var(--surface) 80%, transparent);
+  /* Extras text on its own 20% tint: darker than the tint's colour, for contrast. */
+  --extra-ink: #7a5300;
+  --glass: color-mix(in oklab, var(--surface) 92%, transparent);
   --glass-edge: rgba(0, 0, 0, 0.12);
   --glass-rim: rgba(255, 255, 255, 0.7);
   /* Stickers: a cobalt card for the score, tangerine labels for state, a die-cut edge. */
@@ -27,6 +29,10 @@
   --sticker: #ff6a2b;
   --on-sticker: #0e1330;
   --die: #fff;
+  /* Ball chips carry white text, so they keep these fills in both themes. */
+  --chip-four: #2442e8;
+  --chip-six: #7a2fc0;
+  --chip-wkt: #c22a23;
   --lift: 0 14px 30px rgba(14, 19, 48, 0.14);
   --scene-mix: 20%;
   --sans:
@@ -136,7 +142,8 @@
   --six: #c99bff;
   --wkt: #ff7169;
   --extra: #e8c15a;
-  --glass: color-mix(in oklab, #1c1c1f 82%, transparent);
+  --extra-ink: #e8c15a;
+  --glass: color-mix(in oklab, #1c1c1f 94%, transparent);
   --glass-edge: rgba(255, 255, 255, 0.12);
   --glass-rim: rgba(255, 255, 255, 0.1);
   --die: #262a3a;
@@ -248,7 +255,7 @@ img {
 .top-in {
   height: 48px;
   display: grid;
-  grid-template-columns: 136px 1fr 136px;
+  grid-template-columns: 116px 1fr 116px;
   align-items: center;
   padding: 0 calc(var(--gut) - 6px);
   max-width: 720px;
@@ -279,15 +286,25 @@ img {
   align-items: center;
   gap: 2px;
 }
-.clock {
-  width: auto;
-  min-width: 44px;
-  padding: 0 8px;
-  border-radius: 999px;
-  font-family: var(--num);
-  font-weight: 700;
-  font-size: 0.98rem;
-  font-variant-numeric: tabular-nums;
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 6px;
+  font-weight: 800;
+  font-size: 1.2rem;
+  letter-spacing: -0.03em;
+}
+/* The mark as a sticker: stumps and a flying bail, with the die-cut edge. */
+.brand .mark {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 6px;
+  box-shadow:
+    0 0 0 2px var(--die),
+    0 2px 6px rgba(14, 19, 48, 0.22);
 }
 .top-btns {
   grid-column: 3;
@@ -320,28 +337,11 @@ img {
   width: 24px;
   height: 24px;
 }
-.icon.spin svg {
-  animation: spin 0.9s linear infinite;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-.alerts[aria-pressed="true"] {
+.alerts.on {
   color: var(--accent);
 }
-.alerts[aria-pressed="true"] svg path:first-child {
+.alerts.on svg path:first-child {
   fill: currentColor;
-}
-.theme svg .sun {
-  display: none;
-}
-[data-theme="dark"] .theme svg .sun {
-  display: inline;
-}
-[data-theme="dark"] .theme svg .moon {
-  display: none;
 }
 main {
   padding: 0 var(--gut) calc(var(--tabh) + var(--safe-b) + 44px);
@@ -829,6 +829,32 @@ main {
   font-weight: 600;
   color: var(--ink2);
 }
+/* The start on the ground's own clock, smaller, with its sun or moon. */
+.lt {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  font-size: var(--t-cap);
+  font-weight: 600;
+  color: var(--muted);
+}
+.lt svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+.lt svg .fill,
+.lt svg circle {
+  fill: currentColor;
+}
+.mhero .lt {
+  color: inherit;
+}
 .season .meta {
   display: flex;
   align-items: center;
@@ -893,14 +919,43 @@ details.sr .chev {
 details.sr[open] .chev {
   transform: rotate(180deg);
 }
-/* No score column, so the date gets room to stay on one line. */
+/* Fixture rows: a tear-off calendar date, the match and city, start time and ground. */
 .mr.fxr {
-  grid-template-columns: 4.6rem 1fr;
+  grid-template-columns: 46px 1fr auto;
   min-height: 0;
   padding: 10px 14px;
 }
-.fxr .st > span {
-  white-space: nowrap;
+.cal {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  width: 46px;
+  height: 50px;
+  border-radius: 12px;
+  background: var(--sunk);
+  line-height: 1.05;
+}
+.cal small {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.cal b {
+  font-family: var(--num);
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+.fxr.is-next .cal {
+  background: var(--cobalt);
+  color: #fff;
+}
+.fxr.is-next .cal small {
+  color: #dce2ff;
+}
+.fxm {
+  min-width: 0;
 }
 .fxr .nm {
   font-weight: 650;
@@ -915,6 +970,24 @@ details.sr[open] .chev {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.chip-next {
+  padding: 3px 9px;
+  border-radius: 10px;
+  background: var(--sticker);
+  color: var(--on-sticker);
+  font-weight: 800;
+  font-size: var(--t-cap);
+  white-space: nowrap;
+  box-shadow: 0 0 0 2px var(--die);
+  transform: rotate(3deg);
+}
+/* Not uppercased: "T20Is" would read "T20IS". */
+.fmt-h {
+  padding: 12px 14px 2px;
+  font-size: var(--t-meta);
+  font-weight: 700;
+  color: var(--muted);
 }
 details.sr > .mr::before {
   content: "";
@@ -963,6 +1036,13 @@ details.sr[open] {
 .skel.sm {
   height: 64px;
 }
+.skel.line {
+  display: block;
+  width: 9ch;
+  height: 0.9em;
+  margin: 0.08em 0;
+  border-radius: 10px;
+}
 @keyframes sk {
   to {
     background-position: -200% 0;
@@ -980,7 +1060,7 @@ details.sr[open] {
 .mhero {
   --ink: #fff;
   --ink2: #e7ebff;
-  --muted: #c9d2ff;
+  --muted: #e3e8ff;
   --live: #fff;
   --sunk: rgba(255, 255, 255, 0.16);
   --line2: rgba(255, 255, 255, 0.22);
@@ -1048,18 +1128,17 @@ details.sr[open] {
 }
 
 .seg {
-  position: sticky;
-  top: calc(var(--safe-t) + 52px);
-  z-index: 10;
+  position: relative;
   display: grid;
   grid-template-columns: repeat(var(--n), minmax(0, 1fr));
   padding: 3px;
   margin-bottom: 12px;
   border-radius: 999px;
-  background: var(--glass);
-  -webkit-backdrop-filter: blur(20px) saturate(1.7);
-  backdrop-filter: blur(20px) saturate(1.7);
-  box-shadow: 0 0 0 0.5px var(--glass-edge);
+  /* Opaque, so content scrolling underneath doesn't show through. */
+  background: var(--surface);
+  box-shadow:
+    0 0 0 0.5px var(--glass-edge),
+    0 4px 12px -6px rgba(0, 0, 0, 0.2);
 }
 .seg .thumb {
   position: absolute;
@@ -1080,7 +1159,7 @@ details.sr[open] {
   position: relative;
   display: grid;
   place-items: center;
-  min-height: 38px;
+  min-height: 44px;
   padding: 0 2px;
   border-radius: 999px;
   font-size: var(--t-meta);
@@ -1096,18 +1175,48 @@ details.sr[open] {
 .seg [aria-pressed="true"] {
   color: var(--ink);
 }
-/* Match sections: the cobalt pill matches the bottom tabs. Sub-switches stay neutral. */
+/* Match sections: each tab as wide as its label ("Commentary" needs more room than
+   "Info"), the current one filled cobalt like the bottom tabs. Sub-switches stay
+   neutral with a sliding thumb. */
+.seg:not(.sub) {
+  display: flex;
+  /* On the narrowest phones the four labels don't fit: the strip scrolls sideways. */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.seg:not(.sub)::-webkit-scrollbar {
+  display: none;
+}
 .seg:not(.sub) .thumb {
+  display: none;
+}
+.seg:not(.sub) a {
+  flex: 1 0 auto;
+  padding: 0 14px;
+  overflow: visible;
+}
+.seg:not(.sub) a[aria-current="true"] {
   background: var(--cobalt);
-  box-shadow: none;
 }
 .seg:not(.sub) [aria-current="true"] {
   color: #fff;
 }
+/* Match sections stick under the top bar on a full-width band: once stuck, the band
+   turns the page colour so nothing scrolling beneath shows beside the pill. */
+.segbar {
+  position: sticky;
+  top: calc(var(--safe-t) + 48px);
+  z-index: 10;
+  margin: 0 calc(-1 * var(--gut)) 12px;
+  padding: 4px var(--gut) 8px;
+}
+.segbar.stuck {
+  background: var(--bg);
+}
+.segbar .seg {
+  margin-bottom: 0;
+}
 .seg.sub {
-  position: relative;
-  top: auto;
-  z-index: auto;
   background: var(--sunk);
   box-shadow: none;
   backdrop-filter: none;
@@ -1128,10 +1237,19 @@ details.sr[open] {
   padding: 9px 6px 7px;
   white-space: nowrap;
 }
+/* The name column takes the spare width; each figure column is as wide as its
+   figures, so a wide screen doesn't spread the numbers apart. */
 .tbl th:first-child,
 .tbl td:first-child {
+  width: 100%;
   text-align: left;
   padding-left: 14px;
+}
+.tbl th:not(:first-child),
+.tbl td.n {
+  white-space: nowrap;
+  padding-left: 9px;
+  padding-right: 9px;
 }
 .tbl th:last-child,
 .tbl td:last-child {
@@ -1280,21 +1398,37 @@ details.inn[open] > summary .inn-h {
   display: grid;
   gap: 10px;
 }
+/* The over in progress and the one before, one row each; an over's balls wrap
+   within their row rather than push the card wider. */
 .recent {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 14px;
-  align-items: center;
+  display: grid;
+  gap: 8px;
   padding: 12px 14px;
   border-top: 0.5px solid var(--line2);
 }
 .recent .ov {
-  display: flex;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: 3.4rem 1fr;
+  gap: 8px;
+  align-items: start;
 }
-.recent .ov + .ov {
-  padding-left: 14px;
-  border-left: 0.5px solid var(--line2);
+.recent .ov .lbl {
+  padding-top: 4px;
+  font-size: var(--t-cap);
+  font-weight: 650;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.recent .balls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+.recent .b {
+  min-width: 24px;
+  height: 24px;
+  font-size: 0.85rem;
 }
 .b {
   display: inline-grid;
@@ -1313,15 +1447,15 @@ details.inn[open] > summary .inn-h {
   color: var(--muted);
 }
 .b.f4 {
-  background: var(--four);
+  background: var(--chip-four);
   color: #fff;
 }
 .b.f6 {
-  background: var(--six);
+  background: var(--chip-six);
   color: #fff;
 }
 .b.w {
-  background: var(--wkt);
+  background: var(--chip-wkt);
   color: #fff;
 }
 .b.f4,
@@ -1333,7 +1467,17 @@ details.inn[open] > summary .inn-h {
 }
 .b.x {
   background: color-mix(in srgb, var(--extra) 20%, transparent);
-  color: var(--extra);
+  color: var(--extra-ink);
+}
+/* A reviewed ball: the tangerine sticker colour, dark ink like the state labels. */
+.b.drs {
+  background: var(--sticker);
+  color: var(--on-sticker);
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  box-shadow:
+    0 0 0 2px var(--die),
+    0 2px 6px rgba(14, 19, 48, 0.18);
 }
 
 /* commentary */
@@ -1357,7 +1501,12 @@ details.inn[open] > summary .inn-h {
   right: 0;
   border-top: 0.5px solid var(--line2);
 }
+/* The ball number sits above its 4/6/W chip; side by side they collide in 42px. */
 .ci .ball {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
   font-family: var(--num);
   font-weight: 700;
   font-size: 1.08rem;
@@ -1365,7 +1514,6 @@ details.inn[open] > summary .inn-h {
   padding-top: 1px;
 }
 .ci .ball .b {
-  margin-top: 5px;
   min-width: 24px;
   height: 24px;
   font-size: 0.85rem;
@@ -1388,6 +1536,22 @@ details.inn[open] > summary .inn-h {
   padding: 10px 12px;
   border-radius: var(--r-s);
 }
+details.ci.note > summary {
+  list-style: none;
+  cursor: pointer;
+}
+details.ci.note > summary::-webkit-details-marker {
+  display: none;
+}
+details.ci.note:not([open]) .tx {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+details.ci.note[open] .more-note {
+  display: none;
+}
 .ci.note + .ci::before,
 .ci + .ci.note::before {
   left: 14px;
@@ -1403,6 +1567,51 @@ details.inn[open] > summary .inn-h {
 }
 .ci.ev-wicket {
   background: color-mix(in srgb, var(--wkt) 6%, transparent);
+}
+.ci.ev-review:not(.ev-wicket) {
+  background: color-mix(in srgb, var(--sticker) 7%, transparent);
+}
+/* The review's outcome under the ball's text, and the note posted while it was decided. */
+.rv {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--sticker) 16%, var(--surface));
+  font-size: var(--t-meta);
+  color: var(--ink);
+}
+.rv > b,
+.rv-h {
+  font-weight: 750;
+}
+.rv > b::before,
+.rv-h i {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--sticker);
+  vertical-align: 1px;
+}
+.rv-note {
+  margin-top: 4px;
+  color: var(--ink2);
+}
+.rv-note b {
+  font-weight: 650;
+}
+.ci.note.rv-wait .tx {
+  background: color-mix(in srgb, var(--sticker) 16%, var(--surface));
+  color: var(--ink);
+}
+.rv-h {
+  display: block;
+  margin-bottom: 2px;
+}
+.rv-h i {
+  animation: pulse 1.6s ease-in-out infinite;
 }
 .ov-card {
   margin: 6px 10px;
@@ -1434,13 +1643,13 @@ details.inn[open] > summary .inn-h {
   background: var(--surface);
 }
 .ov-card .balls .b.f4 {
-  background: var(--four);
+  background: var(--chip-four);
 }
 .ov-card .balls .b.f6 {
-  background: var(--six);
+  background: var(--chip-six);
 }
 .ov-card .balls .b.w {
-  background: var(--wkt);
+  background: var(--chip-wkt);
 }
 .ov-card .who {
   display: flex;
@@ -1465,41 +1674,94 @@ details.inn[open] > summary .inn-h {
   color: var(--muted);
 }
 
-/* a series as one mark per match: circles for white-ball games, squares for Tests */
-.fx {
+/* A series as result chips, a row per format: the match number, then the winner's
+   short name (India's wins cobalt, defeats grey), NR or Draw outlined, the next match
+   ringed with its date. The words carry the meaning; colour repeats it. */
+.rcr {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+.rcr > div {
+  display: grid;
+  grid-template-columns: 3.2rem 1fr;
+  gap: 8px;
+  align-items: start;
+}
+.rcr .lbl {
+  padding-top: 5px;
+  font-size: var(--t-cap);
+  font-weight: 650;
+  color: var(--muted);
+}
+.rcs {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 3px;
-  margin-top: 7px;
+  gap: 6px;
+  min-width: 0;
 }
-.fx i {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 1.5px var(--line);
-}
-.fx i.t {
-  border-radius: 3px;
-}
-.fx i.next {
-  box-shadow: inset 0 0 0 2.5px var(--accent);
-}
-.fx i.won {
-  background: var(--accent);
-  box-shadow: none;
-}
-.fx i.lost,
-.fx i.done {
-  background: var(--muted);
-  box-shadow: none;
-}
-.fx i.nr {
+.rc {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-height: 26px;
+  padding: 4px 8px;
+  border-radius: 8px;
   background: var(--sunk);
+  color: var(--ink);
+  font-family: var(--num);
+  font-weight: 700;
+  font-size: 0.92rem;
+  line-height: 1.1;
+  white-space: nowrap;
 }
-.fx i.live {
+.rc small {
+  font-family: var(--sans);
+  font-size: 0.66rem;
+  font-weight: 650;
+  color: var(--muted);
+}
+.rc.won {
+  background: var(--cobalt);
+  color: #fff;
+  box-shadow: 0 0 0 2px var(--die);
+}
+.rc.won small {
+  color: #fff;
+}
+.rc.nr,
+.rc.ahead {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.rc.nr {
+  color: var(--muted);
+}
+.rc.ahead {
+  color: var(--ink2);
+  font-family: var(--sans);
+  font-size: var(--t-cap);
+  font-weight: 650;
+}
+.rc.next {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.rc.live b::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 4px;
+  border-radius: 50%;
   background: var(--live);
-  box-shadow: none;
+  vertical-align: 1px;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+a.rc {
+  transition: transform 0.2s var(--spring-fast);
+}
+a.rc:active {
+  transform: scale(0.96);
 }
 
 /* Home: the series the live or next match belongs to */
@@ -1536,16 +1798,6 @@ details.inn[open] > summary .inn-h {
   font-size: var(--t-meta);
   color: var(--accent);
 }
-.fx i.gap {
-  width: 4px;
-  box-shadow: none;
-}
-.fx small {
-  margin-left: 4px;
-  font-size: var(--t-cap);
-  color: var(--muted);
-}
-
 /* fall of wickets in the batting innings, latest stuck on */
 .fowx {
   padding: 12px 14px 14px;
@@ -1663,6 +1915,252 @@ details.inn[open] > summary .inn-h {
 .potm .face {
   width: 48px;
   height: 48px;
+}
+
+/* ---------- sheets, messages and small controls */
+.sheet {
+  width: min(calc(100% - 24px), 480px);
+  max-height: calc(100% - 48px);
+  margin: auto auto 12px;
+  padding: 8px 18px 20px;
+  border: 0;
+  border-radius: 24px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+}
+.sheet::backdrop {
+  background: rgba(14, 19, 48, 0.45);
+}
+@media (min-width: 720px) {
+  .sheet {
+    margin: auto;
+  }
+}
+.sheet-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.sheet h2 {
+  margin: 0;
+  font-size: var(--t-title);
+  font-weight: 800;
+}
+.sheet p {
+  margin: 8px 0;
+  line-height: 1.45;
+}
+.sheet fieldset {
+  margin: 12px 0 0;
+  padding: 0;
+  border: 0;
+}
+.sheet legend {
+  padding: 0 0 6px;
+  font-size: var(--t-cap);
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.opt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 0 4px;
+  border-top: 0.5px solid var(--line2);
+  cursor: pointer;
+}
+.opt input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--cobalt);
+}
+.opt small {
+  margin-left: 6px;
+  color: var(--muted);
+}
+.row-link {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  margin-top: 12px;
+  border-top: 0.5px solid var(--line2);
+  font-weight: 650;
+  color: var(--accent);
+}
+.status-line {
+  font-weight: 650;
+}
+.btn {
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: var(--sunk);
+  font-weight: 700;
+  color: var(--ink);
+}
+.btn.primary {
+  width: 100%;
+  margin-top: 8px;
+  background: var(--cobalt);
+  color: #fff;
+}
+.btn:disabled {
+  opacity: 0.5;
+}
+/* Text-style buttons and links, padded to a 44px target without looking like buttons. */
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font: inherit;
+  font-weight: 650;
+  color: var(--accent);
+}
+.toast {
+  position: fixed;
+  z-index: 40;
+  left: 50%;
+  bottom: calc(var(--safe-b) + var(--tabh) + 22px);
+  transform: translateX(-50%);
+  width: min(calc(100% - 32px), 440px);
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: var(--ink);
+  color: var(--bg);
+  font-weight: 600;
+  font-size: var(--t-meta);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+.notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 10px;
+  margin: 0 0 10px;
+  padding: 6px 14px;
+  border-radius: var(--r-s);
+  background: color-mix(in srgb, var(--sticker) 16%, var(--surface));
+  font-size: var(--t-meta);
+}
+.key {
+  margin: 0;
+  padding: 10px 14px 12px;
+  border-top: 0.5px solid var(--line2);
+  font-size: var(--t-cap);
+  line-height: 1.5;
+  color: var(--muted);
+}
+details.inn + .key {
+  margin-top: 10px;
+  border: 0;
+}
+abbr[title] {
+  text-decoration: none;
+  cursor: help;
+}
+/* Names, labels and status lines wrap rather than lose their ends to an ellipsis;
+   a two-innings score breaks at its "&". */
+.fxr .nm {
+  white-space: normal;
+}
+.hrow .sc,
+.side .sc {
+  white-space: normal;
+}
+/* A team name is never narrower than its longest word; a long score wraps at its
+   spaces instead ("528/8d" over "151 ov"). */
+.hrow {
+  grid-template-columns: 34px minmax(min-content, 1fr) minmax(0, auto);
+}
+.side {
+  grid-template-columns: 22px minmax(min-content, 1fr) minmax(0, auto);
+}
+.mhero .pill {
+  background: rgba(14, 19, 48, 0.28);
+  color: #fff;
+}
+.mr .why {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.side .nm,
+.hrow .nm {
+  white-space: normal;
+  /* break-word, not anywhere: anywhere lets the column shrink to one letter. */
+  overflow-wrap: break-word;
+  line-height: 1.2;
+}
+/* The narrowest phones: smaller hero figures, tighter tables and section tabs. */
+@media (max-width: 360px) {
+  :root {
+    --n-hero: 2.1rem;
+  }
+  .tbl th:not(:first-child),
+  .tbl td.n {
+    padding-left: 5px;
+    padding-right: 5px;
+  }
+  .tbl th:first-child,
+  .tbl td:first-child {
+    padding-left: 12px;
+  }
+  .tbl th:last-child,
+  .tbl td:last-child {
+    padding-right: 12px;
+  }
+  .seg:not(.sub) a {
+    min-width: 44px;
+    padding: 0 8px;
+  }
+}
+/* The tab highlight waits for the app to know which tab is current. */
+.tabs:not([data-ready]) .tab-pill {
+  opacity: 0;
+}
+/* Very short screens (landscape phones): the tab bar stops floating over content. */
+@media (max-height: 460px) {
+  .tabs {
+    position: static;
+    transform: none;
+    margin: 16px auto calc(var(--safe-b) + 12px);
+  }
+  main {
+    padding-bottom: 8px;
+  }
+  .toast {
+    bottom: 16px;
+  }
+}
+
+/* About & privacy */
+.prose {
+  padding-bottom: 40px;
+  line-height: 1.55;
+}
+.prose h1 {
+  margin: 8px 0 4px;
+  font-size: var(--t-display);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.prose h2 {
+  margin: 24px 0 4px;
+  font-size: var(--t-title);
+  font-weight: 750;
+}
+.prose p,
+.prose li {
+  color: var(--ink2);
+}
+.prose ul {
+  padding-left: 20px;
 }
 
 .nojs {

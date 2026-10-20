@@ -13,17 +13,29 @@
     />
     <meta name="theme-color" content="#f3f3f5" id="themeColor" />
     <script>
+      // "light" or "dark" when chosen in Settings; otherwise (or with storage blocked)
+      // the device's setting.
+      var t = null;
       try {
-        var t = localStorage.getItem("crease-theme");
-        if (
-          t === "dark" ||
-          (!t && matchMedia("(prefers-color-scheme: dark)").matches)
-        ) {
-          document.documentElement.dataset.theme = "dark";
-          document.getElementById("themeColor").content = "#000000";
-        }
+        t = localStorage.getItem("crease-theme");
       } catch (e) {}
+      if (
+        t === "dark" ||
+        (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches)
+      ) {
+        document.documentElement.dataset.theme = "dark";
+        document.getElementById("themeColor").content = "#000000";
+      }
     </script>
+    <style>
+      /* The page colour before the stylesheet arrives: no white flash on a slow line. */
+      html {
+        background: #f3f3f5;
+      }
+      html[data-theme="dark"] {
+        background: #000;
+      }
+    </style>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Crease" />
@@ -34,6 +46,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
+      media="print"
+      onload="this.media = 'all'"
+      referrerpolicy="no-referrer"
       href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Barlow+Condensed:wght@500;600;700&display=swap"
     />
     <link rel="stylesheet" href="/app.css" />
@@ -54,7 +69,26 @@
                 <path d="M15 5l-7 7 7 7" />
               </svg>
             </button>
-            <button class="icon clock" id="clock" type="button">24h</button>
+            <a class="brand" id="brand" href="#now" aria-label="Crease, home"
+              ><svg class="mark" viewBox="0 0 120 120" aria-hidden="true">
+                <rect width="120" height="120" rx="27" fill="#2442e8" />
+                <g fill="#fff">
+                  <rect x="38" y="44" width="10" height="52" rx="5" />
+                  <rect x="55" y="44" width="10" height="52" rx="5" />
+                  <rect x="72" y="44" width="10" height="52" rx="5" />
+                  <rect x="38" y="35" width="27" height="5.5" rx="2.75" />
+                </g>
+                <rect
+                  x="68"
+                  y="24"
+                  width="27"
+                  height="5.5"
+                  rx="2.75"
+                  fill="#ff6a2b"
+                  transform="rotate(-28 81.5 26.75)"
+                /></svg
+              >crease</a
+            >
           </div>
           <div class="top-title" id="topTitle" aria-hidden="true"></div>
           <div class="top-btns">
@@ -62,8 +96,9 @@
               class="icon alerts"
               id="alerts"
               type="button"
-              aria-label="Alerts for India and IPL matches"
-              aria-pressed="false"
+              aria-label="Alerts"
+              aria-haspopup="dialog"
+              title="Alerts"
               hidden
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -72,40 +107,29 @@
               </svg>
             </button>
             <button
-              class="icon theme"
-              id="theme"
-              type="button"
-              aria-label="Dark mode"
-              aria-pressed="false"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  class="moon"
-                  d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"
-                />
-                <g class="sun">
-                  <circle cx="12" cy="12" r="4" />
-                  <path
-                    d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"
-                  />
-                </g>
-              </svg>
-            </button>
-            <button
               class="icon"
-              id="refresh"
+              id="settingsBtn"
               type="button"
-              aria-label="Refresh"
+              aria-label="Settings"
+              aria-haspopup="dialog"
+              title="Settings"
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M20 12a8 8 0 1 1-2.34-5.66" />
-                <path d="M20 4v5h-5" />
+                <circle cx="12" cy="12" r="3" />
+                <path
+                  d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"
+                />
               </svg>
             </button>
           </div>
         </div>
       </header>
-      <main id="view" tabindex="-1"></main>
+      <main id="view" tabindex="-1">
+        <!-- Shown until the app's first render, so a slow connection sees structure. -->
+        <div class="skel" aria-hidden="true"></div>
+        <div class="skel sm" aria-hidden="true"></div>
+        <div class="skel sm" aria-hidden="true"></div>
+      </main>
       <nav class="tabs" id="tabs" aria-label="Sections" style="--n: 4">
         <i class="tab-pill" aria-hidden="true"></i>
         <a href="#now" data-tab="now"
@@ -145,6 +169,73 @@
       </nav>
     </div>
     <div id="announce" class="vh" aria-live="polite"></div>
+    <div id="toast" class="toast" role="status" hidden></div>
+    <dialog id="alertsSheet" class="sheet" aria-labelledby="alertsTitle">
+      <div class="sheet-h">
+        <h2 id="alertsTitle">Alerts</h2>
+        <button class="icon" type="button" data-close aria-label="Close">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </div>
+      <p>
+        A notification for India and IPL matches when a match starts, for every
+        wicket, when a decision is reviewed (and again with the outcome), for a
+        batter's fifty or hundred, and for a bowler's five-for.
+      </p>
+      <p class="dim">
+        Alerts arrive only while Crease is open, in a tab or as an installed
+        app. Your browser asks for permission first. Crease checks the scores
+        itself and shows the notification on this device; there is no account
+        and no push service.
+        <a class="link" href="/about.html#alerts">How alerts work</a>
+      </p>
+      <p id="alertsStatus" class="status-line"></p>
+      <button id="alertsToggle" class="btn primary" type="button"></button>
+    </dialog>
+    <dialog id="settingsSheet" class="sheet" aria-labelledby="settingsTitle">
+      <div class="sheet-h">
+        <h2 id="settingsTitle">Settings</h2>
+        <button class="icon" type="button" data-close aria-label="Close">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </div>
+      <fieldset>
+        <legend>Time format</legend>
+        <label class="opt"
+          ><input type="radio" name="clock" value="12" /><span
+            >12-hour <small>1:30 pm</small></span
+          ></label
+        >
+        <label class="opt"
+          ><input type="radio" name="clock" value="24" /><span
+            >24-hour <small>13:30</small></span
+          ></label
+        >
+      </fieldset>
+      <fieldset>
+        <legend>Appearance</legend>
+        <label class="opt"
+          ><input type="radio" name="theme" value="system" /><span
+            >Same as my device</span
+          ></label
+        >
+        <label class="opt"
+          ><input type="radio" name="theme" value="light" /><span
+            >Light</span
+          ></label
+        >
+        <label class="opt"
+          ><input type="radio" name="theme" value="dark" /><span
+            >Dark</span
+          ></label
+        >
+      </fieldset>
+      <a class="row-link" href="/about.html">About &amp; privacy</a>
+    </dialog>
     <noscript><p class="nojs">Crease needs JavaScript.</p></noscript>
     <script type="module" src="/app.js"></script>
   </body>

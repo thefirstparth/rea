@@ -8,6 +8,7 @@
 
 import {
   cached,
+  cachedAt,
   get as fetchFrom,
   getJson as jsonFrom,
   UpstreamError,
@@ -169,7 +170,31 @@ function team(t) {
   };
 }
 
-function summary(entry) {
+// Status lines in plain words: "won by 8 wkts" reads "won by 8 wickets".
+const statusText = (t) =>
+  String(t ?? "")
+    .replace(/\bwkts\b/g, "wickets")
+    .replace(/\bwkt\b/g, "wicket");
+
+// Cricbuzz writes a venue's UTC offset as "+13:00": minutes east of UTC, or null.
+function utcOffset(tz) {
+  const m = String(tz ?? "").match(/^([+-])(\d{2}):(\d{2})$/);
+  if (!m) return null;
+  return (m[1] === "-" ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3]));
+}
+
+const venueOf = (v) =>
+  v
+    ? {
+        ground: v.ground ?? "",
+        city: v.city ?? "",
+        utcOffset: utcOffset(v.timezone),
+      }
+    : null;
+
+// List pages name the match type ("International", "League", "Domestic") once per
+// group, not per match; `type` carries the group's down.
+function summary(entry, type = "") {
   const i = entry.matchInfo ?? entry.match?.matchInfo;
   if (!i) return null;
   const s = entry.matchScore ?? entry.match?.matchScore;
@@ -182,14 +207,12 @@ function summary(entry) {
     seriesId: i.seriesId ?? null,
     desc: i.matchDesc ?? "",
     format: i.matchFormat ?? "",
-    type: i.matchType ?? "",
+    type: i.matchType || type,
     start: Number(i.startDate) || null,
     state: i.state ?? "",
-    status: i.status ?? "",
+    status: statusText(i.status),
     phase: phaseOf(i.state),
-    venue: i.venueInfo
-      ? { ground: i.venueInfo.ground ?? "", city: i.venueInfo.city ?? "" }
-      : null,
+    venue: venueOf(i.venueInfo),
     batting: i.currBatTeamId ?? null,
     t1,
     t2,
@@ -206,7 +229,7 @@ function matchesFromFlight(flight) {
   for (const type of typeMatches) {
     for (const series of type.seriesMatches ?? []) {
       for (const m of series.seriesAdWrapper?.matches ?? []) {
-        const sm = summary(m);
+        const sm = summary(m, type.matchType ?? "");
         if (sm) out.push(sm);
       }
     }
@@ -221,10 +244,10 @@ const LIST_PAGES = {
 };
 
 const homeMatches = (json) =>
-  (json?.matches ?? []).map(summary).filter(Boolean);
+  (json?.matches ?? []).map((m) => summary(m)).filter(Boolean);
 
 function listPage(kind, ttl) {
-  return cached(`list:${kind}`, ttl, async () =>
+  return cachedAt(`list:${kind}`, ttl, async () =>
     matchesFromFlight(await getFlight(LIST_PAGES[kind])),
   );
 }
@@ -235,7 +258,7 @@ export async function matches() {
     listPage("live", 15000),
     listPage("recent", 120000),
     listPage("upcoming", 300000),
-    cached("home", 15000, () => getJson("/api/home")),
+    cachedAt("home", 15000, () => getJson("/api/home")),
   ]);
   if (live.status === "rejected" && home.status === "rejected")
     throw live.reason;
@@ -247,14 +270,19 @@ export async function matches() {
       if (!prev) byId.set(m.id, m);
     }
   };
-  if (live.status === "fulfilled") add(live.value);
-  if (home.status === "fulfilled") add(homeMatches(home.value));
-  if (recent.status === "fulfilled") add(recent.value);
-  if (upcoming.status === "fulfilled") add(upcoming.value);
+  if (live.status === "fulfilled") add(live.value.value);
+  if (home.status === "fulfilled") add(homeMatches(home.value.value));
+  if (recent.status === "fulfilled") add(recent.value.value);
+  if (upcoming.status === "fulfilled") add(upcoming.value.value);
   const all = [...byId.values()];
   all.sort((a, b) => (a.start ?? 0) - (b.start ?? 0));
   return {
-    asOf: Date.now(),
+    // The live scores are as old as the older of the two live feeds that answered.
+    asOf: Math.min(
+      ...[live, home]
+        .filter((r) => r.status === "fulfilled")
+        .map((r) => r.value.at),
+    ),
     partial: [live, recent, upcoming].some((r) => r.status === "rejected"),
     matches: all,
   };
@@ -269,7 +297,7 @@ function fixturesFrom(flight, key) {
   if (!Array.isArray(days)) return [];
   return days
     .flatMap((d) => d?.matchDetailsMap?.match ?? [])
-    .map(summary)
+    .map((m) => summary(m))
     .filter(Boolean);
 }
 
@@ -297,8 +325,6 @@ function seriesFixtures(id) {
   );
 }
 
-// The current or next IPL season from Cricbuzz's series calendar. Its dates are
-// Cricbuzz's listing and can precede the official fixture release.
 // Every league series by month, from the league schedule page. The /api/series/schedule
 // route looked similar but lists only series Cricbuzz streams in the caller's country,
 // so from India (where the server runs) it left out the IPL.
@@ -343,6 +369,23 @@ export async function schedule() {
   if (ipl.status === "rejected" && india.status === "rejected")
     throw india.reason;
   const series = ipl.status === "fulfilled" ? ipl.value : null;
+  // The results page stops at ten matches, which can cut a series in half; each
+  // series it shows is completed from that series' own page.
+  const done = results.status === "fulfilled" ? results.value : [];
+  const seriesIds = [...new Set(done.map((m) => m.seriesId).filter(Boolean))];
+  const full = await Promise.allSettled(
+    seriesIds.slice(0, 4).map((id) => seriesFixtures(id)),
+  );
+  const resultsById = new Map(done.map((m) => [m.id, m]));
+  for (const r of full)
+    if (r.status === "fulfilled")
+      for (const m of r.value)
+        if (
+          m.phase === "done" &&
+          m.tags.includes("india") &&
+          !resultsById.has(m.id)
+        )
+          resultsById.set(m.id, m);
   let iplFixtures = [];
   if (series) {
     try {
@@ -354,16 +397,19 @@ export async function schedule() {
   return {
     asOf: Date.now(),
     // Which parts failed, so the app can say "couldn't load" rather than "none".
-    failed: Object.entries({ ipl, india, indiaResults: results })
-      .filter(([, r]) => r.status === "rejected")
-      .map(([part]) => part),
+    failed: [
+      ...Object.entries({ ipl, india, indiaResults: results })
+        .filter(([, r]) => r.status === "rejected")
+        .map(([part]) => part),
+      ...(full.some((r) => r.status === "rejected") ? ["resultSeries"] : []),
+    ],
     india: (india.status === "fulfilled" ? india.value : [])
       .filter((m) => m.phase !== "done")
       .sort((a, b) => (a.start ?? 0) - (b.start ?? 0)),
     // Null when the results page failed: unknown, not "no results".
     indiaResults:
       results.status === "fulfilled"
-        ? results.value
+        ? [...resultsById.values()]
             .filter((m) => m.phase === "done")
             .sort((a, b) => (b.start ?? 0) - (a.start ?? 0))
         : null,
@@ -386,6 +432,31 @@ function eventOf(events) {
   return null;
 }
 
+const plain = (html) => String(html ?? "").replace(/<[^>]*>/g, "");
+
+// What a DRS review changed. Cricbuzz marks a reviewed delivery with the "udrs" event;
+// the verdict is only in its text, so it is named only when the text says it plainly,
+// otherwise null (the review still shows, without a verdict).
+const OVERTURNED =
+  /\boverturn|\breversed\b|change (his|the|her) (call|decision)|umpire (is|was) unmoved|given not out/i;
+const STANDS =
+  /\bwastes? (a|the|their|his) review|review (is )?(lost|wasted)|loses? (a|the|their) review|three reds|decision stands|stays (with )?(out|not out)/i;
+const UMPIRES_CALL = /\bump(ire)?'?s'? call\b[^.]*\bretain/i;
+
+function reviewOf(events, text) {
+  if (!(events ?? []).map((x) => String(x).toLowerCase()).includes("udrs"))
+    return null;
+  const t = plain(text);
+  const verdict = OVERTURNED.test(t)
+    ? "overturned"
+    : UMPIRES_CALL.test(t)
+      ? "umpires-call"
+      : STANDS.test(t)
+        ? "stands"
+        : null;
+  return { verdict };
+}
+
 function commItem(v) {
   if (!v || typeof v !== "object") return null;
   if (v.commType === "over-separator" && v.overSeparator) {
@@ -401,7 +472,11 @@ function commItem(v) {
         .split(/\s+/)
         .filter(Boolean),
       team: o.batTeamObj?.teamName ?? "",
-      score: o.batTeamObj?.teamScore ?? "",
+      // "127-3" as everywhere else in Crease: "127/3".
+      score: String(o.batTeamObj?.teamScore ?? "").replace(
+        /^(\d+)-(\d+)$/,
+        "$1/$2",
+      ),
       bat: [o.batStrikerObj, o.batNonStrikerObj]
         .filter((p) => p?.playerName)
         .map((p) => ({ name: p.playerName, score: p.playerScore })),
@@ -412,7 +487,7 @@ function commItem(v) {
   }
   if (v.commType !== "commentary" || !v.commText) return null;
   const hasBall = typeof v.ballMetric === "number";
-  return {
+  const item = {
     kind: hasBall ? "ball" : "note",
     ts: v.timestamp,
     inn: v.inningsId ?? null,
@@ -420,14 +495,65 @@ function commItem(v) {
     event: eventOf(v.event),
     html: cleanHtml(v.commText),
   };
+  const review = hasBall && reviewOf(v.event, v.commText);
+  if (review) item.review = review;
+  return item;
 }
 
-function commList(raw) {
+// Between deliveries Cricbuzz posts a flash ("Axar Patel to Jewel Andrew, THATS OUT!!
+// Lbw!!") and, when a decision is reviewed, a note on it ("Given out LBW. Jewel Andrew
+// reviews."). Once the delivery itself is posted they repeat it: the flash is dropped
+// and the review note joins the delivery's review. Until then they stay, and the review
+// note is marked pending when it is the newest item of a live match.
+const FLASH = /^(.+? to .+?), THATS OUT!!/i;
+const REVIEW_NOTE =
+  /\b(reviews|reviewed|review taken|goes upstairs|gone upstairs|referred upstairs)\b|\bhas (gone for|taken) (the|a) review\b/i;
+const NO_REVIEW =
+  /\b(no|not|without|doesn't|didn't|won't|decides? against)\b[^.]{0,20}\breview/i;
+
+function foldBetweenBalls(items, live) {
+  // Oldest first, so each note meets the delivery that follows it.
+  const asc = items.slice().reverse();
+  const out = [];
+  let held = [];
+  for (const c of asc) {
+    if (c.kind === "note") {
+      const t = plain(c.html);
+      if (FLASH.test(t) || (REVIEW_NOTE.test(t) && !NO_REVIEW.test(t))) {
+        held.push(c);
+        continue;
+      }
+    }
+    if (c.kind === "ball") {
+      for (const n of held) {
+        const t = plain(n.html);
+        const flash = t.match(FLASH);
+        if (flash && plain(c.html).startsWith(flash[1])) continue;
+        if (!flash && c.review) {
+          c.review.notes = [...(c.review.notes ?? []), n.html];
+          continue;
+        }
+        out.push(n);
+      }
+      held = [];
+    }
+    out.push(c);
+  }
+  // Notes after the newest delivery: the next ball isn't posted yet.
+  for (const n of held) {
+    if (live && !FLASH.test(plain(n.html))) n.review = { pending: true };
+    out.push(n);
+  }
+  return out.reverse();
+}
+
+function commList(raw, { live = false } = {}) {
   const list = Array.isArray(raw) ? raw : Object.values(raw ?? {});
-  return list
+  const items = list
     .map(commItem)
     .filter(Boolean)
     .sort((a, b) => b.ts - a.ts);
+  return foldBetweenBalls(items, live);
 }
 
 function header(h) {
@@ -451,7 +577,7 @@ function header(h) {
     seriesId: h.seriesId ?? null,
     start: h.matchStartTimestamp ?? null,
     state: h.state ?? "",
-    status: h.status ?? "",
+    status: statusText(h.status),
     phase: phaseOf(h.state),
     toss: h.tossResults?.tossWinnerName
       ? `${h.tossResults.tossWinnerName} won the toss and chose to ${
@@ -496,6 +622,17 @@ function bowler(p) {
   };
 }
 
+// Reviews left per side, when the match uses DRS (Cricbuzz sends null otherwise).
+function reviewsLeft(u) {
+  if (!u) return null;
+  const side = (n) =>
+    typeof u[`team${n}Remaining`] === "number"
+      ? { teamId: u[`team${n}Id`] ?? null, left: u[`team${n}Remaining`] }
+      : null;
+  const sides = [side(1), side(2)].filter(Boolean);
+  return sides.length ? sides : null;
+}
+
 function miniscore(ms) {
   if (!ms) return null;
   return {
@@ -531,7 +668,8 @@ function miniscore(ms) {
       .split("|")
       .map((o) => o.trim().split(/\s+/).filter(Boolean))
       .filter((o) => o.length),
-    status: ms.status ?? "",
+    status: statusText(ms.status),
+    reviews: reviewsLeft(ms.matchUdrs),
   };
 }
 
@@ -548,17 +686,17 @@ function matchFrom(raw) {
   return {
     header: h,
     mini: miniscore(raw.miniscore),
-    commentary: commList(raw.matchCommentary),
+    commentary: commList(raw.matchCommentary, { live: h.phase === "live" }),
   };
 }
 
 export async function match(id) {
-  const raw = await cached(`comm:${id}`, 10000, () =>
+  const { value: raw, at } = await cachedAt(`comm:${id}`, 10000, () =>
     getJson(`/api/mcenter/comm/${id}`),
   );
   const m = matchFrom(raw);
   return {
-    asOf: Date.now(),
+    asOf: at,
     refresh: m.header.phase === "live" ? 15000 : 0,
     ...m,
   };
@@ -648,17 +786,15 @@ function scorecardFrom(flight, id) {
           .sort((a, b) => a.inningsId - b.inningsId)
           .map(scorecardInnings)
       : [],
-    venue: info?.venueInfo
-      ? { ground: info.venueInfo.ground ?? "", city: info.venueInfo.city ?? "" }
-      : null,
+    venue: venueOf(info?.venueInfo),
   };
 }
 
 export async function scorecard(id) {
-  const flight = await cached(`scard:${id}`, 15000, () =>
+  const { value: flight, at } = await cachedAt(`scard:${id}`, 10000, () =>
     getFlight(`/live-cricket-scorecard/${id}/x`),
   );
-  return { asOf: Date.now(), ...scorecardFrom(flight, id) };
+  return { asOf: at, ...scorecardFrom(flight, id) };
 }
 
 // ---------- squads
@@ -708,10 +844,10 @@ const squadsFrom = (flight) => ({
 });
 
 export async function squads(id) {
-  const flight = await cached(`squads:${id}`, 60000, () =>
+  const { value: flight, at } = await cachedAt(`squads:${id}`, 60000, () =>
     getFlight(`/cricket-match-squads/${id}/x`),
   );
-  return { asOf: Date.now(), ...squadsFrom(flight) };
+  return { asOf: at, ...squadsFrom(flight) };
 }
 
 // Pure parsers over captured upstream payloads, for the fixture tests.

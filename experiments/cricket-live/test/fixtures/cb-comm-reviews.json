@@ -1,0 +1,202 @@
+[
+{
+"matchId": 147931,
+"commType": "commentary",
+"commText": "Matt Renshaw to Marco Jansen, no run, Marco Jansen has been given caught behind, but he has decided to review the decision. There was definitely a sound, and the Australian team went up in unison as the umpire wasted no time in raising the finger. However, Jansen wants to have another look. UltraEdge reveals that the <b>spike was caused by the bat making contact with the pad</b>, with no bat involved as the ball passed the outside edge. Renshaw pushes it through quicker on a length, and Jansen tries to block it away from his body. The decision is overturned, and <b>the umpire is asked to change his call</b>",
+"inningsId": 1,
+"event": [
+"udrs",
+"all"
+],
+"ballMetric": 64.4,
+"timestamp": 1792488718913,
+"overSeparator": null
+},
+{
+"matchId": 147931,
+"commType": "commentary",
+"commText": "Matt Renshaw to Marco Jansen, no run, stays back and blocks this length delivery",
+"inningsId": 1,
+"event": [
+"none",
+"all"
+],
+"ballMetric": 64.3,
+"timestamp": 1792488604012,
+"overSeparator": null
+},
+{
+"commType": "over-separator",
+"matchId": 147931,
+"inningsId": 1,
+"timestamp": 1792484358265,
+"overSeparator": {
+"timestamp": 1792484358265,
+"overNumber": 50,
+"overSummary": "0 0 0 0 0 W ",
+"overRuns": 0,
+"batTeamObj": {
+"teamName": "RSA",
+"teamScore": "110-6"
+},
+"batStrikerObj": {
+"playerId": 11200,
+"playerName": "Wiaan Mulder",
+"playerScore": "13(38)"
+},
+"batNonStrikerObj": {
+"playerId": 8583,
+"playerName": "Temba Bavuma",
+"playerScore": "43(127)"
+},
+"bowlerObj": {
+"playerId": 7710,
+"playerName": "Mitchell Starc",
+"playerScore": "11-3-27-2"
+}
+}
+},
+{
+"matchId": 147931,
+"commType": "commentary",
+"commText": "Mitchell Starc to Wiaan Mulder, <b>out</b> Caught by Matt Renshaw!! The short ball hits Mulder and goes to first slip! Australia are celebrating, thinking there's glove involved, but the umpire is unmoved. They've gone for the review. Oh yes, there's a clear spike next to the glove. It then hits the helmet and goes to Renshaw at first slip. <b>Test wicket no. 450 for Mitchell Starc</b> and what a snorter of a delivery to get it with. Fiery bumper, Mulder is taken by surprise and takes his eyes off completely while leaving his hands up in front of the face. There was only a little brush of the glove on the way to the helmet. <b>Wiaan Mulder c Matt Renshaw b Mitchell Starc 13(38) [4s-1]</b>",
+"inningsId": 1,
+"event": [
+"over-break",
+"wicket",
+"udrs",
+"maiden_over",
+"all"
+],
+"ballMetric": 49.6,
+"timestamp": 1792484358263,
+"overSeparator": null
+},
+{
+"matchId": 147931,
+"commType": "commentary",
+"commText": "Mitchell Starc to Wiaan Mulder, <b>THATS OUT!!</b> Caught!!",
+"inningsId": 1,
+"event": [
+"none",
+"all"
+],
+"timestamp": 1792484357629,
+"overSeparator": null
+},
+{
+"matchId": 147931,
+"commType": "commentary",
+"commText": "Mitchell Starc to Wiaan Mulder, no run, good length on middle and leg, he works it to the right of mid-on but the fielder is quick to cut it off",
+"inningsId": 1,
+"event": [
+"none",
+"all"
+],
+"ballMetric": 49.5,
+"timestamp": 1792484186686,
+"overSeparator": null
+},
+{
+"matchId": 151598,
+"commType": "commentary",
+"commText": "Axar Patel to Jewel Andrew, <b>out</b> Lbw!! <b>Jewel Andrew wastes a review.</b> Virender Sharma had the finger up so quickly and it's three reds as well. On a good length and slower on off, Andrew premeditated the reverse-sweep and misses. It's hit above the kneeroll in line with the stumps and it's crashing into the stumps. Axar Patel strikes in the powerplay. That was a clever piece of bowling as he pulled the length back. <b>Jewel Andrew lbw b Axar Patel 21(16) [4s-2 6s-1]</b>",
+"inningsId": 1,
+"event": [
+"wicket",
+"udrs",
+"all"
+],
+"ballMetric": 4.2,
+"timestamp": 1791986065519,
+"overSeparator": null
+},
+{
+"matchId": 151598,
+"commType": "commentary",
+"commText": "Axar Patel to Jewel Andrew, <b>THATS OUT!!</b> Lbw!!",
+"inningsId": 1,
+"event": [
+"none",
+"all"
+],
+"timestamp": 1791986064623,
+"overSeparator": null
+},
+{
+"matchId": 151598,
+"commType": "commentary",
+"commText": "<b>Given out LBW. Jewel Andrew reviews.</b> This looks out. Even though it's hit high on the pad - above the kneeroll, should be at worst umps' call. The Indians sipping some cool drinks. No bat and we wait for ball-tracking. Three reds!",
+"inningsId": 1,
+"event": [
+"none",
+"all"
+],
+"timestamp": 1791985980199,
+"overSeparator": null
+},
+{
+"matchId": 151598,
+"commType": "commentary",
+"commText": "Axar Patel to Jewel Andrew, no run, slower and following Jewel Andrew outside the leg-stump, Andrew gets forward to drive it back to Axar Patel",
+"inningsId": 1,
+"event": [
+"none",
+"all"
+],
+"ballMetric": 4.1,
+"timestamp": 1791985946891,
+"overSeparator": null
+},
+{
+"matchId": 151587,
+"commType": "commentary",
+"commText": "Roston Chase to Shreyas Iyer, <b>out</b> Lbw!! It could be ump's call on impact but it looks quite out to the naked eye. Shreyas moved across for a mighty slog over mid-wicket. It was a tease from Chase as it was a length ball. The shot was probably on but it seemed like the ball came slower than Shreyas expected with some extra turn. Impact on the back leg so less distance for the ball to travel. Ball-tracker says it's smashing middle stump and impact is ump's call. Chase has turned this around with two wickets in this over. What a series he's having when all other bowlers are struggling. Shreyas normally is a brilliant player of spin and he couldn't believe his own eyes that he missed a simple ball. <b>Shreyas Iyer lbw b Roston Chase 1(2)</b>",
+"inningsId": 1,
+"event": [
+"wicket",
+"udrs",
+"all"
+],
+"ballMetric": 8.5,
+"timestamp": 1791727979276,
+"overSeparator": null
+},
+{
+"matchId": 151587,
+"commType": "commentary",
+"commText": "Roston Chase to Shreyas Iyer, <b>THATS OUT!!</b> Lbw!!",
+"inningsId": 1,
+"event": [
+"none",
+"all"
+],
+"timestamp": 1791727978045,
+"overSeparator": null
+},
+{
+"matchId": 151587,
+"commType": "commentary",
+"commText": "Shreyas given OUT LBW. Reviewed! This looks quite close, no bat. Has to completely miss for Shreyas to escape because it has been given on the field. In fact Shreyas is walking off seeing the giant screen even before ball-tracking comes up. Wickets hitting, impact ump's call",
+"inningsId": 1,
+"event": [
+"none",
+"all"
+],
+"timestamp": 1791727907574,
+"overSeparator": null
+},
+{
+"matchId": 151587,
+"commType": "commentary",
+"commText": "Roston Chase to Abhishek Sharma, 1 run, gentle nudge to the on-side",
+"inningsId": 1,
+"event": [
+"none",
+"all"
+],
+"ballMetric": 8.4,
+"timestamp": 1791727872786,
+"overSeparator": null
+}
+]

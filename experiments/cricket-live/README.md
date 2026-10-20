@@ -58,7 +58,7 @@ event is found from the same fixture.
 | `GET /api/matches`                         | live, recent and upcoming list pages (RSC payload) and `/api/home`                              | 15s to 5m                |
 | `GET /api/match/:id`                       | `/api/mcenter/comm/:id` (header, miniscore, latest commentary)                                  | 10s                      |
 | `GET /api/match/:id/commentary?inn&before` | `/api/mcenter/commentary-pagination/:id/:inn/:beforeTimestamp`                                  | 60s                      |
-| `GET /api/match/:id/scorecard`             | `/live-cricket-scorecard/:id/x` page, `scoreCard` in the RSC payload                            | 15s                      |
+| `GET /api/match/:id/scorecard`             | `/live-cricket-scorecard/:id/x` page, `scoreCard` in the RSC payload                            | 10s                      |
 | `GET /api/schedule`                        | India's team schedule and results pages (team 2), the league schedule page, the IPL series page | 30m (league schedule 6h) |
 | `GET /api/match/:id/squads`                | `/cricket-match-squads/:id/x` page, `team1`/`team2` in the RSC payload                          | 60s                      |
 
@@ -164,27 +164,59 @@ first-`matchInfo` lookup is put back.
 - Commentary HTML from both sources is sanitised on the server. Only `b`, `i`
   and `br` are kept, links are reduced to their text, and every other
   character is escaped.
-- The commentary toggle defaults to the Cricinfo live blog when Cricinfo has the
-  match, and remembers the choice in `localStorage`.
-- Light and dark themes follow the system setting, and the moon/sun button
-  overrides it.
-- Times follow the device's 12- or 24-hour clock; the 12h/24h button at the
-  top left switches every time on screen, IST included, and is remembered.
+- Commentary defaults to Cricbuzz's ball-by-ball. The Cricinfo live blog is the
+  other choice (it can run overs behind, and says so when it does), and the
+  choice is remembered in `localStorage`.
+- **Settings** (the gear): 12- or 24-hour time (default: the locale's), and
+  light, dark or the device's theme. **About & privacy** (`/about.html`) says
+  where the data comes from, what is stored (four `localStorage` keys, no
+  cookies, no analytics) and which other sites the browser contacts.
+- Every time on screen names its zone ("12:30 pm IST"); the match Info tab adds
+  India's time only for readers elsewhere. Dates are in English, like the rest
+  of the UI.
 - Page tints come from a small table of team colours keyed by Cricbuzz short
   name (`TEAM_COLOR` in `public/app.js`). A match page uses India's colour when
   India play, otherwise the home side's; teams not in the table leave the page
   plain.
 - The live tab also loads the scorecard so it can show the batting side's fall
   of wickets.
+- **Caching**: browsers never keep API answers (`cache-control: no-store`); only
+  the CDN shares them, for the times above (`CDN-Cache-Control`). Each answer's
+  `asOf` is when Crease fetched it from the source, so "Updated …" is honest. A
+  live score never steps back a ball on a lagging answer, the scorecard says when
+  it trails the live score, and the commentary says when Cricbuzz has posted no
+  ball for 8 minutes of play.
+- **DRS reviews**: Cricbuzz marks a reviewed delivery with the `udrs` event. The
+  adapter reads the verdict from its text only when it is stated plainly
+  ("overturned", "wastes a review", "umpire's call … retained"); otherwise the
+  review shows without one. Cricbuzz's "THATS OUT!!" flash and its "X reviews"
+  note are folded into the delivery once it is posted; until then the note shows
+  as a review in progress. The live tab shows reviews left when the match uses
+  DRS. Cricinfo's blog marks no reviews, so its commentary shows none.
+- **Venue time**: next-match cards and Info show the start on the ground's own
+  clock (from Cricbuzz's venue UTC offset), with a day, day-night or night glyph,
+  whenever the ground isn't on India's time.
+- **Series results**: India's games as chips, a row per format: match number and
+  the winner's short name, NR or Draw, the date of one to come; the standing per
+  format ("ODIs: IND won 2–1") replaces a single mixed tally.
 - **Alerts** (the bell): for India and IPL matches, a notification when a match
-  starts, for each wicket (with the dismissal), for a batter's fifty or hundred,
-  and for a bowler's five-for. Turning them on asks for notification permission
-  and is remembered. Detection lives in `public/alerts.js`, a pure module the
+  starts, for each wicket (with the dismissal), when a decision is reviewed and
+  again with its outcome (the outcome replaces the first), for a batter's fifty
+  or hundred, and for a bowler's five-for. The bell opens a short explanation first; turning
+  alerts on asks for notification permission, and every outcome (on, off,
+  blocked) shows a visible message. The choice is remembered. Detection lives in `public/alerts.js`, a pure module the
   tests run in Node: opening the app never replays old events, and a wicket is
   announced once even if a slower source briefly reports the old count.
   Milestones come from the current batters' and bowlers' figures, so one reached
   and then lost to a wicket between two polls can be missed. `public/sw.js` only
-  shows notifications and opens the match on tap; it caches nothing.
+  shows notifications and opens the match on tap; it caches nothing, is
+  installed when alerts are turned on and removed when they're turned off.
+- Match sections replace the history entry, so Back leaves the match instead of
+  stepping through the sections visited.
+- A failed load is kept apart from the data and retried on the next poll;
+  Cricinfo enrichment is retried a minute after a failure. Fixtures more than an
+  hour away aren't polled (Cricbuzz has no match centre for them yet), and an id
+  Cricbuzz doesn't know stops being polled until the reader retries.
 
 ## Limits
 
@@ -204,5 +236,5 @@ first-`matchInfo` lookup is put back.
   Cricinfo's own hosts already refuse it, which is why the ESPN API is used.
   If a deployment shows "Cricbuzz returned 403", the source is blocking
   Vercel's network, and the local server is the fallback.
-- There are no push notifications or service worker yet. The web manifest only
-  makes the app installable.
+- There are no push notifications: alerts need Crease to be running (see
+  above). The web manifest makes the app installable.

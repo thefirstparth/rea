@@ -44,6 +44,21 @@ test("live-scores list parses into valid men's matches", () => {
   );
 });
 
+test("list matches carry their group's type, and venues their UTC offset", () => {
+  const list = cb.list(read("cb-live-list.flight.txt"));
+  assert.ok(list.length);
+  assert.ok(
+    list.every((m) => m.type),
+    "every match has a type",
+  );
+  const pindi = list.find((m) => m.venue?.city === "Rawalpindi");
+  assert.equal(pindi?.venue.utcOffset, 300);
+  const nz = cb
+    .fixtures(read("cb-india-schedule.flight.txt"), "teamMatchesData")
+    .find((m) => m.venue?.city === "Christchurch");
+  assert.equal(nz?.venue.utcOffset, 13 * 60);
+});
+
 test("home feed parses into valid men's matches", () => {
   cb.home(json("cb-home.json")).forEach(assertMatch);
 });
@@ -138,6 +153,39 @@ test("older commentary pages come before the latest page", () => {
   const older = cb.commentary(json("cb-comm-page.json"));
   assert.ok(older.length > 0);
   assert.ok(older[0].ts < latest.at(-1).ts);
+});
+
+// Real reviews from three matches (test/fixtures/cb-comm-reviews.json): a batter's lost
+// review with Cricbuzz's flash and review notes before the delivery, one with no verdict
+// in the text, and two overturned decisions (one each way).
+test("DRS reviews: verdicts from the reviewed delivery, flash and review notes folded in", () => {
+  const raw = json("cb-comm-reviews.json");
+  const items = cb.commentary(raw);
+  const at = (ball) => items.find((c) => c.kind === "ball" && c.ball === ball);
+  assert.deepEqual(
+    [4.2, 8.5, 49.6, 64.4].map((b) => [at(b).event, at(b).review?.verdict]),
+    [
+      ["wicket", "stands"],
+      ["wicket", null],
+      ["wicket", "overturned"],
+      [null, "overturned"],
+    ],
+  );
+  assert.equal(at(64.3).review, undefined);
+  // The duplicates in between are gone; the review note travels with its delivery.
+  assert.ok(
+    !items.some((c) => c.kind === "note"),
+    "no flash or review notes left",
+  );
+  assert.match(at(4.2).review.notes[0], /Jewel Andrew reviews/);
+  // While the reviewed ball isn't posted, the newest review note is pending (live only).
+  const asked = raw.filter(
+    (v) => v.timestamp >= 1791985946891 && v.timestamp < 1791986064623,
+  );
+  const pending = cb.commentary(asked, { live: true })[0];
+  assert.equal(pending.kind, "note");
+  assert.deepEqual(pending.review, { pending: true });
+  assert.equal(cb.commentary(asked)[0].review, undefined);
 });
 
 test("scorecard reads the requested match, never the site-wide ticker", () => {
@@ -259,11 +307,7 @@ test("Cricinfo: fixture lookup, match info and live-blog commentary", (t) => {
       return json("ci-pbp-first.json");
     }
   })();
-  const { items, olderPage } = ci.commentary(
-    [last],
-    ev.homeId,
-    last.pageIndex ?? 1,
-  );
+  const { items, olderPage } = ci.commentary([last], last.pageIndex ?? 1);
   const ts = items.map((i) => i.ts);
   assert.equal(new Set(ts).size, ts.length, "each entry has its own ts");
   assert.deepEqual(
@@ -272,6 +316,18 @@ test("Cricinfo: fixture lookup, match info and live-blog commentary", (t) => {
   );
   for (const i of items)
     if (i.html) assert.doesNotMatch(i.html, /<a\b|<script/i);
+  // Regressions: over summaries carry the batting side's real score (homeScore read
+  // "0" for a side 241 all out), and blog-only entries add no empty ball row.
+  for (const o of items.filter((i) => i.kind === "over"))
+    assert.match(o.score, /^\d+\/\d+$/);
+  for (const b of items.filter((i) => i.kind === "ball"))
+    assert.ok(b.html.replace(/<[^>]+>/g, "").trim(), "ball row has text");
+  const raw = last.items.find((i) => i.over?.complete && i.innings);
+  if (raw)
+    assert.equal(
+      items.find((i) => i.kind === "over" && i.over === raw.over.number)?.score,
+      `${raw.innings.runs}/${raw.innings.wickets}`,
+    );
   assert.equal(
     olderPage,
     (last.pageIndex ?? 1) > 1 ? last.pageIndex - 1 : null,
