@@ -133,6 +133,57 @@ const liveBadge = (m) =>
     ? `<span class="live paused"><i></i>${esc(stateWord(m))}</span>`
     : '<span class="live"><i></i>Live</span>';
 
+// The tangerine label stuck on a sticker card: live, the pause (Stumps, Lunch), or the countdown.
+function stateSticker(m) {
+  if (m.phase === "live")
+    return paused(m)
+      ? `<span class="stk">${esc(stateWord(m))}</span>`
+      : '<span class="stk"><i></i>Live</span>';
+  if (m.phase === "upcoming" && m.start)
+    return `<span class="stk">${esc(countdown(m.start))}</span>`;
+  return "";
+}
+
+// Team colours, by Cricbuzz short name, that tint the top of a page. India leads when India
+// play; otherwise the home side (listed first). Unknown teams leave the page untinted.
+const TEAM_COLOR = {
+  IND: "#1f5fd6",
+  AUS: "#f2b705",
+  RSA: "#007749",
+  ENG: "#1d3c8f",
+  NZ: "#3a3a3a",
+  PAK: "#01411c",
+  SL: "#0033a0",
+  BAN: "#006a4e",
+  WI: "#7a1f3d",
+  AFG: "#0066b3",
+  IRE: "#169b62",
+  ZIM: "#d21034",
+  NED: "#f36c21",
+  CSK: "#f9cd05",
+  MI: "#004ba0",
+  RCB: "#d1171b",
+  KKR: "#3a225d",
+  SRH: "#f26522",
+  RR: "#ea1a85",
+  DC: "#17449b",
+  PBKS: "#d71920",
+  GT: "#1b2133",
+  LSG: "#0057a8",
+};
+const LIST_SCENE = {
+  now: TEAM_COLOR.IND,
+  india: TEAM_COLOR.IND,
+  ipl: "#4a2fb0",
+};
+
+function sceneOf(m) {
+  if (!m) return null;
+  const india = [m.t1, m.t2].find((t) => /^India(\s|$)/.test(t?.name ?? ""));
+  if (india) return TEAM_COLOR.IND;
+  return TEAM_COLOR[m.t1?.short] ?? TEAM_COLOR[m.t2?.short] ?? null;
+}
+
 const byStartAsc = (a, b) => (a.start ?? 0) - (b.start ?? 0);
 const byStartDesc = (a, b) => (b.start ?? 0) - (a.start ?? 0);
 
@@ -281,7 +332,9 @@ function matchJobs({ id, tab }, force) {
   if (!S.ci.has(id) || (force && tab === "info")) jobs.push(loadCi(id));
   if (tab === "live" && commSrc === "ci" && fresh(S.ciComm.has(id)))
     jobs.push(loadCiComm(id));
-  if (tab === "scorecard" && fresh(S.card.has(id))) jobs.push(loadCard(id));
+  // The live tab shows the batting side's fall of wickets, which only the scorecard has.
+  if ((tab === "scorecard" || tab === "live") && fresh(S.card.has(id)))
+    jobs.push(loadCard(id));
   if (tab === "squads" && (force || !S.squad.has(id))) jobs.push(loadSquad(id));
   // A scheduled match may only be known from the long-range schedule.
   if (!summaryOf(id) && schedStale()) jobs.push(loadSched());
@@ -527,7 +580,8 @@ function hrow(m, t, inns) {
 function hero(m) {
   const live = m.phase === "live";
   return `<a class="hero${live ? " is-live" : ""}${paused(m) ? " paused" : ""}" data-k="h${m.id}" href="#m/${m.id}/live">
-    <div class="meta">${live ? liveBadge(m) : ""}${tags(m)}<span>${esc([m.format, m.desc].filter(Boolean).join(" · "))}</span></div>
+    ${stateSticker(m)}
+    <div class="meta">${tags(m)}<span>${esc([m.format, m.desc].filter(Boolean).join(" · "))}</span></div>
     <div class="rows">${hrow(m, m.t1, m.s1)}${hrow(m, m.t2, m.s2)}</div>
     <div class="status">${esc(m.status)}</div>
     <div class="dim" style="font-size:var(--t-cap);margin-top:3px">${esc(m.series)}${m.venue ? ` · ${esc(m.venue.city || m.venue.ground)}` : ""}</div>
@@ -734,9 +788,10 @@ function nextCard(m) {
     : "";
   const when = m.start ? `${dayLabel(m.start)} ${timeFmt.format(m.start)}` : "";
   return `<a class="hero next" data-k="n${m.id}" href="#m/${m.id}/info">
+    ${stateSticker(m)}
     <div class="meta">${tag}<span>${esc(matchLabel(m))}</span></div>
     <div class="rows">${hrow(m, m.t1, [])}${hrow(m, m.t2, [])}</div>
-    <div class="when">${m.start ? `<span class="cd">${esc(countdown(m.start))}</span>` : ""}<span>${esc([when, where].filter(Boolean).join(" · "))}</span></div>
+    <div class="when"><span>${esc([when, where].filter(Boolean).join(" · "))}</span></div>
     <div class="dim" style="font-size:var(--t-cap);margin-top:4px">${esc(m.series)}</div>
   </a>`;
 }
@@ -771,12 +826,24 @@ function composition(fixtures) {
     .join(" · ");
 }
 
+// One mark per fixture, a small gap where the format changes; the next match is ringed.
+const FX_MAX = 24;
+function fixtureMarks(fixtures) {
+  const shown = fixtures.slice(0, FX_MAX);
+  const marks = shown.map(
+    (m, i) =>
+      `${i && m.format !== shown[i - 1].format ? '<i class="gap"></i>' : ""}<i class="${[m.format === "TEST" ? "t" : "", i === 0 ? "next" : ""].join(" ").trim()}"></i>`,
+  );
+  const more = fixtures.length - shown.length;
+  return `<div class="fx" role="img" aria-label="${esc(`${composition(fixtures)} to play; the first is next`)}">${marks.join("")}${more > 0 ? `<small>+${more}</small>` : ""}</div>`;
+}
+
 function seriesRow(g) {
   const first = g.fixtures[0];
   const last = g.fixtures.at(-1);
   const open = S.openSeries.has(g.id);
   return `<details class="sr" data-k="sr${esc(g.id)}" data-series="${esc(g.id)}"${open ? " open" : ""}>
-    <summary><div><div class="nm">${esc(g.name)}</div><div class="sub">${esc(dateRange(first.start, last.start))} · ${esc(composition(g.fixtures))} to play</div></div>
+    <summary><div><div class="nm">${esc(g.name)}</div><div class="sub">${esc(dateRange(first.start, last.start))} · ${esc(composition(g.fixtures))} to play</div>${fixtureMarks(g.fixtures)}</div>
       <div class="nx">${first.start ? esc(dayLabel(first.start)) : ""}<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></div></summary>
     ${g.fixtures.map((m) => row(m, true)).join("")}
   </details>`;
@@ -886,8 +953,9 @@ function matchView(r) {
         `<span class="pill">P'ship <b>${esc(mini.partnership.r)}</b>(${esc(mini.partnership.b)})</span>`,
       );
   }
-  const heroHtml = `<section class="mhero${live ? " is-live" : ""}${paused(h) ? " paused" : ""}" data-k="mh">
-    <div class="series">${live ? liveBadge(h) : ""}${tags(h)}<span>${esc(h.series)}</span></div>
+  const heroHtml = `<section class="mhero" data-k="mh">
+    ${stateSticker(h)}
+    <div class="series">${tags(h)}<span>${esc(h.series)}</span></div>
     <h1>${esc(h.t1.short)} v ${esc(h.t2.short)} · ${esc(h.desc)}</h1>
     <div class="rows">${hrow(m, t1, i1)}${hrow(m, t2, i2)}</div>
     <div class="status">${esc(h.status || (h.start ? `Starts ${dayLabel(h.start)} ${timeFmt.format(h.start)}` : ""))}</div>
@@ -931,10 +999,11 @@ function previewView(r, m) {
     ? [m.venue.ground, m.venue.city].filter(Boolean).join(", ")
     : "";
   const hero = `<section class="mhero" data-k="mh">
+    ${stateSticker(m)}
     <div class="series">${tags(m)}<span>${esc(m.series)}</span></div>
     <h1>${esc(m.t1.short)} v ${esc(m.t2.short)} · ${esc(m.desc)}</h1>
     <div class="rows">${hrow(m, m.t1, [])}${hrow(m, m.t2, [])}</div>
-    ${m.start ? `<div class="when"><span class="cd">${esc(countdown(m.start))}</span><span>${esc(`${dayLabel(m.start)} ${timeFmt.format(m.start)}`)}</span></div>` : ""}
+    ${m.start ? `<div class="when"><span>${esc(`${dayLabel(m.start)} ${timeFmt.format(m.start)}`)}</span></div>` : ""}
   </section>`;
   const start = m.start ? `starts ${countdown(m.start)}` : "hasn't started";
   let body;
@@ -998,6 +1067,7 @@ function liveTab(id, d) {
           : ""
       }
       ${mini.lastWicket ? `<div class="kv"><span class="lbl">Last wicket</span>${esc(mini.lastWicket.replace(/\s+/g, " "))}</div>` : ""}
+      ${fallOfWickets(id, mini.inn)}
     </div>`;
   }
   const ci = useCricinfo(id);
@@ -1024,6 +1094,20 @@ function liveTab(id, d) {
   }
   html += `<div class="card flush" data-k="cm-${ci ? "ci" : "cb"}"><div class="comm">${items.map(commItem).join("")}</div>${ci ? ciMore(id) : cbMore(id)}</div>`;
   return html;
+}
+
+// The batting innings' wickets as score chips, the latest stuck on in tangerine.
+// The last wicket's batter is already named in the row above.
+function fallOfWickets(id, inn) {
+  const fow = S.card.get(id)?.innings?.find((i) => i.inn === inn)?.fow ?? [];
+  if (!fow.length) return "";
+  return `<div class="fowx"><span class="lbl">Fall of wickets</span>
+    <ol>${fow.map((f, i) => `<li${i === fow.length - 1 ? ' class="last"' : ""} title="${esc(`${f.name}, ${f.over} ov`)}"><b>${esc(f.score)}</b>${esc(ordinal(f.n))}</li>`).join("")}</ol></div>`;
+}
+
+function ordinal(n) {
+  const teen = n % 100 >= 11 && n % 100 <= 13;
+  return `${n}${(!teen && ["th", "st", "nd", "rd"][n % 10]) || "th"}`;
 }
 
 function moreButton(act, state) {
@@ -1228,6 +1312,14 @@ function cricinfoInfo(id) {
 
 // ---------- render
 
+// Tints the top of the page with the view's team colour; see TEAM_COLOR.
+function applyScene(r, teams) {
+  const color = r.kind === "match" ? sceneOf(teams) : LIST_SCENE[r.tab];
+  const root = document.documentElement.style;
+  if (color) root.setProperty("--scene", color);
+  else root.removeProperty("--scene");
+}
+
 function render() {
   const r = route();
   const html = r.kind === "match" ? matchView(r) : listView(r.tab);
@@ -1255,6 +1347,7 @@ function render() {
   $("#back").hidden = r.kind !== "match";
   const d = r.kind === "match" ? S.match.get(r.id) : null;
   const teams = d?.header ?? (r.kind === "match" ? summaryOf(r.id) : null);
+  applyScene(r, teams);
   const title =
     r.kind === "match"
       ? teams
