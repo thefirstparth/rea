@@ -2,6 +2,8 @@
 // One poll loop refreshes whatever the current route shows; renders are morphed into the DOM
 // so live updates keep scroll, focus, images and open sections.
 
+import { snapshot, step } from "./alerts.js";
+
 const POLL_MS = 15000;
 const LIST_TABS = ["now", "india", "ipl", "all"];
 const MATCH_TABS = ["live", "scorecard", "squads", "info"];
@@ -33,6 +35,19 @@ try {
   // Storage blocked: keep the default.
 }
 const useCricinfo = (id) => commSrc === "ci" && S.ci.get(id)?.available;
+
+// Alerts for India and IPL matches: on only after the browser grants permission.
+const canAlert = "Notification" in window && "serviceWorker" in navigator;
+let alertsOn = false;
+try {
+  alertsOn =
+    canAlert &&
+    Notification.permission === "granted" &&
+    localStorage.getItem("crease-alerts") === "on";
+} catch {
+  // Storage blocked: alerts start off.
+}
+const alertState = new Map(); // match id -> step() state
 
 const $ = (sel) => document.querySelector(sel);
 const view = $("#view");
@@ -303,7 +318,8 @@ async function refresh(force = false) {
     await job;
   } finally {
     if (inflight === job) inflight = null;
-    if (!document.hidden) schedule();
+    // With alerts on, a background tab keeps polling (browsers may slow it down).
+    if (!document.hidden || alertsOn) schedule();
   }
 }
 
@@ -318,7 +334,9 @@ async function poll(force) {
   if (r.kind === "list" && r.tab !== "all" && schedStale())
     jobs.push(loadSched());
   if (r.kind === "match") jobs.push(...matchJobs(r, force));
+  if (alertsOn && r.kind === "match") jobs.push(loadList());
   await Promise.allSettled(jobs);
+  if (alertsOn) await checkAlerts(r);
   if (!--S.busy) spin.classList.remove("spin");
   render();
 }
@@ -495,6 +513,77 @@ function commentary(id) {
     out.push(c);
   }
   return out.sort((a, b) => b.ts - a.ts);
+}
+
+// ---------- alerts
+
+const followed = () =>
+  (S.list?.matches ?? []).filter(
+    (m) => m.tags.length && (m.phase === "live" || m.phase === "upcoming"),
+  );
+
+// Wickets and milestones need each live followed match's own payload; the open match
+// already has a fresh one from this poll.
+async function checkAlerts(r) {
+  const open = r.kind === "match" ? r.id : null;
+  const live = followed().filter(
+    (m) => m.phase === "live" && String(m.id) !== open,
+  );
+  await Promise.allSettled(live.map((m) => loadMatch(String(m.id))));
+  for (const m of followed()) {
+    const id = String(m.id);
+    const { state, events } = step(
+      alertState.get(id),
+      snapshot(m, S.match.get(id)),
+    );
+    alertState.set(id, state);
+    for (const ev of events) showAlert(ev);
+  }
+}
+
+async function showAlert(ev) {
+  const reg = await navigator.serviceWorker.getRegistration();
+  if (!reg) return;
+  await reg.showNotification(ev.title, {
+    body: ev.body,
+    tag: ev.tag,
+    icon: "/icon.svg",
+    data: { url: `/#m/${ev.id}/live` },
+  });
+}
+
+function setAlerts(on) {
+  alertsOn = on;
+  $("#alerts").setAttribute("aria-pressed", String(on));
+  try {
+    localStorage.setItem("crease-alerts", on ? "on" : "off");
+  } catch {
+    // Storage blocked: the choice lasts for this visit only.
+  }
+}
+
+const say = (text) => ($("#announce").textContent = text);
+
+async function toggleAlerts() {
+  if (alertsOn) {
+    setAlerts(false);
+    return say("Alerts off.");
+  }
+  const permission =
+    Notification.permission === "default"
+      ? await Notification.requestPermission()
+      : Notification.permission;
+  if (permission !== "granted")
+    return say(
+      "Notifications are blocked for Crease. Allow them in your browser's site settings.",
+    );
+  await navigator.serviceWorker.register("/sw.js");
+  alertState.clear();
+  setAlerts(true);
+  say(
+    "Alerts on while Crease is open: match starts, wickets, fifties, hundreds and five-fors in India and IPL matches.",
+  );
+  refresh(true);
 }
 
 // ---------- list views
@@ -1380,9 +1469,20 @@ addEventListener(
   { passive: true },
 );
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden) clearTimeout(timer);
-  else refresh();
+  if (!document.hidden) refresh();
+  else if (!alertsOn) clearTimeout(timer);
 });
+if (canAlert) {
+  $("#alerts").hidden = false;
+  $("#alerts").setAttribute("aria-pressed", String(alertsOn));
+  $("#alerts").addEventListener("click", toggleAlerts);
+  if (alertsOn) navigator.serviceWorker.register("/sw.js");
+  // A tapped alert asks this page to open its match.
+  navigator.serviceWorker.addEventListener("message", (e) => {
+    if (e.data?.type === "open" && /^#m\/\d+/.test(e.data.hash))
+      location.hash = e.data.hash;
+  });
+}
 $("#refresh").addEventListener("click", () => refresh(true));
 $("#back").addEventListener("click", () => {
   if (cameFromList && history.length > 1) history.back();

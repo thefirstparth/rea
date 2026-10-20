@@ -171,9 +171,23 @@ first-`matchInfo` lookup is put back.
   plain.
 - The live tab also loads the scorecard so it can show the batting side's fall
   of wickets.
+- **Alerts** (the bell): for India and IPL matches, a notification when a match
+  starts, for each wicket (with the dismissal), for a batter's fifty or hundred,
+  and for a bowler's five-for. Turning them on asks for notification permission
+  and is remembered. Detection lives in `public/alerts.js`, a pure module the
+  tests run in Node: opening the app never replays old events, and a wicket is
+  announced once even if a slower source briefly reports the old count.
+  Milestones come from the current batters' and bowlers' figures, so one reached
+  and then lost to a wicket between two polls can be missed. `public/sw.js` only
+  shows notifications and opens the match on tap; it caches nothing.
 
 ## Limits
 
+- Alerts work only while Crease is open, in a visible or background tab, or
+  as an installed app that is still running. Browsers slow background polling,
+  so alerts there can lag by a minute or more. On iPhone nothing arrives once you
+  leave the app. With alerts on, each poll also fetches every live India or IPL
+  match, not just the one on screen.
 - Both sources are unofficial, undocumented endpoints. They can change without
   notice, so the app suits personal or local use. The server caches every
   upstream call and makes at most a few requests per 15s per open match.

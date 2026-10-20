@@ -248,7 +248,7 @@ img {
 .top-in {
   height: 48px;
   display: grid;
-  grid-template-columns: 96px 1fr 96px;
+  grid-template-columns: 136px 1fr 136px;
   align-items: center;
   padding: 0 calc(var(--gut) - 6px);
   max-width: 720px;
@@ -314,6 +314,12 @@ img {
   to {
     transform: rotate(360deg);
   }
+}
+.alerts[aria-pressed="true"] {
+  color: var(--accent);
+}
+.alerts[aria-pressed="true"] svg path:first-child {
+  fill: currentColor;
 }
 .theme svg .sun {
   display: none;
