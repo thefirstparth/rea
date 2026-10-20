@@ -28,7 +28,6 @@ const S = {
   sched: null, // { asOf, india: fixtures, ipl: { name, start, end, fixtures } }
   schedErr: null,
   openSeries: new Set(), // expanded series ids on list pages
-  closedSeries: new Set(), // series open by default that the reader closed
   busy: 0,
 };
 
@@ -429,8 +428,6 @@ function onRoute() {
   lastRouteKey = key;
   leaving = false;
   reveal = r.section ?? null;
-  // Asked for the results: the latest series opens even if it was closed earlier.
-  if (reveal === "results") S.closedSeries.clear();
   if (changed) {
     view.innerHTML = "";
     window.scrollTo(0, 0);
@@ -1336,28 +1333,58 @@ function byFormat(fixtures) {
   return rows;
 }
 
-// One format's standing: "India won 2–1", "WI lead 2–1", "level 1–1", "drawn 1–1",
-// with draws and no-results after it.
-function standing({ list }) {
+// One format's results so far, from India's side, and who is ahead.
+function countFormat({ list }) {
   const n = { won: 0, lost: 0, draw: 0, nr: 0 };
   for (const m of list) if (m.phase === "done") n[outcome(m)]++;
-  const extra = [
-    n.draw ? `${n.draw} draw${n.draw > 1 ? "s" : ""}` : "",
-    n.nr ? `${n.nr} no result` : "",
-  ].filter(Boolean);
-  if (!n.won && !n.lost) return extra.join(", ");
-  const over = list.every((m) => m.phase === "done");
   const india = indiaSide(list[0]);
   const other = [list[0].t1, list[0].t2].find((t) => t !== india);
-  const hi = Math.max(n.won, n.lost);
-  const lo = Math.min(n.won, n.lost);
-  const lead =
-    n.won === n.lost
-      ? over
-        ? "drawn"
-        : "level"
-      : `${n.won > n.lost ? india.short || "India" : other?.short || "Opponents"} ${over ? "won" : "lead"}`;
-  return `${lead} ${hi}–${lo}${extra.length ? ` (${extra.join(", ")})` : ""}`;
+  const leader =
+    n.won > n.lost
+      ? india.short || "India"
+      : n.lost > n.won
+        ? other?.short || "Opponents"
+        : "";
+  return {
+    ...n,
+    leader,
+    hi: Math.max(n.won, n.lost),
+    lo: Math.min(n.won, n.lost),
+    over: list.every((m) => m.phase === "done"),
+  };
+}
+
+// One format's standing in words: "India won 2–1", "WI lead 2–1", "level 1–1",
+// "drawn 1–1", with draws and no-results after it.
+function standing(r) {
+  const c = countFormat(r);
+  const extra = [
+    c.draw ? `${c.draw} draw${c.draw > 1 ? "s" : ""}` : "",
+    c.nr ? `${c.nr} no result` : "",
+  ].filter(Boolean);
+  if (!c.won && !c.lost) return extra.join(", ");
+  const lead = c.leader
+    ? `${c.leader} ${c.over ? "won" : "lead"}`
+    : c.over
+      ? "drawn"
+      : "level";
+  return `${lead} ${c.hi}–${c.lo}${extra.length ? ` (${extra.join(", ")})` : ""}`;
+}
+
+// The same, short, for a one-line summary: "IND 2–1", "2–2 · 1 NR"; India ahead is
+// marked so it can be coloured.
+function standingShort(r) {
+  const c = countFormat(r);
+  const score =
+    c.won || c.lost ? `${c.leader ? `${c.leader} ` : ""}${c.hi}–${c.lo}` : "";
+  const text = [
+    score,
+    c.draw ? `${c.draw} draw${c.draw > 1 ? "s" : ""}` : "",
+    c.nr ? `${c.nr} NR` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return { text, ahead: c.won > c.lost };
 }
 
 // "T20Is: WI lead 2–1 · ODIs: IND won 2–1" across a series' formats.
@@ -1371,11 +1398,11 @@ function standings(fixtures) {
     .join(" · ");
 }
 
-// India's games as result chips, a row per format (see .rcr in app.css). With links,
-// each chip opens its match; without (inside a series summary, which is itself a
-// button) the chips are one labelled image.
+// India's games as result chips, a row per format (see .rcr in app.css): one labelled
+// image, not links. They are too small to tap reliably, and the matches beside them
+// (the series' rows, home's "Then" list) open each game.
 // Before a ball is bowled the chips would only repeat the fixture list: none then.
-function resultChips(fixtures, { links = false } = {}) {
+function resultChips(fixtures) {
   const rows = byFormat(fixtures);
   if (!rows.length || fixtures.every((m) => m.phase === "upcoming")) return "";
   const next = fixtures.find((m) => m.phase === "upcoming");
@@ -1399,16 +1426,11 @@ function resultChips(fixtures, { links = false } = {}) {
       }
       const said = `${m.desc}: ${m.phase === "upcoming" ? (m.start ? startsShort(m.start) : "to come") : m.status || stateWord(m)}`;
       words.push(said);
-      const inner = `<small>${esc(no)}</small><b>${esc(text)}</b>`;
-      return links
-        ? `<a class="rc ${cls}" href="#m/${m.id}/${m.phase === "upcoming" ? "info" : "live"}" aria-label="${esc(said)}">${inner}</a>`
-        : `<span class="rc ${cls}">${inner}</span>`;
+      return `<span class="rc ${cls}"><small>${esc(no)}</small><b>${esc(text)}</b></span>`;
     });
     return `<div><span class="lbl">${esc(PLURAL[format] ?? format)}</span><span class="rcs">${chips.join("")}</span></div>`;
   });
-  return links
-    ? `<div class="rcr">${html.join("")}</div>`
-    : `<div class="rcr" role="img" aria-label="${esc(words.join("; "))}">${html.join("")}</div>`;
+  return `<div class="rcr" role="img" aria-label="${esc(words.join("; "))}">${html.join("")}</div>`;
 }
 
 const sameSeries = (a, b) =>
@@ -1438,7 +1460,7 @@ function currentSeries(focus) {
     <div class="card series-now" data-k="cs">
       <div class="nm">${esc(focus.series)}</div>
       <div class="sub">${esc(dateRange(all[0].start, all.at(-1).start))} · ${esc(composition(all))}${record ? ` · ${esc(record)}` : ""}</div>
-      ${resultChips(all, { links: true })}
+      ${resultChips(all)}
       ${latest ? `<div class="latest"><span class="lbl">Latest</span>${esc(`${latest.desc}: ${latest.status}`)}</div>` : ""}
     </div>
     ${ahead.length ? `<div class="sec" data-k="cah"><span>Then</span></div><div class="list" data-k="csl">${ahead.map((m) => fixtureRow(m)).join("")}</div>` : ""}
@@ -1470,21 +1492,29 @@ function indiaResultsSection() {
   return `<div class="sec" id="results" tabindex="-1" data-k="rh"><span>Recent series</span></div><div class="list" data-k="rl">${groupSeries(
     results,
   )
-    .map((g, i) => resultsRow(g, i === 0))
+    .map(resultsRow)
     .join("")}</div>`;
 }
 
-// A finished (or finishing) series: its standing and result chips, opening to each result.
-// The latest series starts open (unless the reader closed it), so India's last result
-// is on screen without a tap.
-function resultsRow(g, latest = false) {
+// A recent series in one line: its standing per format ("ODIs IND 2–1 · T20Is 2–2 ·
+// 1 NR") and when it ended. It opens to the result chips and each match.
+function resultsRow(g) {
   const played = g.fixtures.slice().reverse();
-  const record = standings(played);
   const key = `r${g.id}`;
-  const open = latest ? !S.closedSeries.has(key) : S.openSeries.has(key);
-  return `<details class="sr" data-k="rs${esc(g.id)}" data-series="${esc(key)}"${latest ? " data-default-open" : ""}${open ? " open" : ""}>
-    <summary><div><div class="nm">${esc(g.name)}</div><div class="sub">${esc(dateRange(played[0].start, played.at(-1).start))}${record ? ` · ${esc(record)}` : ""}</div>${resultChips(played)}</div>
-      <div class="nx">${played.at(-1).start ? esc(dayLabel(played.at(-1).start)) : ""}<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></div></summary>
+  const last = played.at(-1);
+  const line = byFormat(played)
+    .map((r) => {
+      const st = standingShort(r);
+      return st.text
+        ? `<span>${esc(PLURAL[r.format] ?? r.format)} <b${st.ahead ? ' class="w"' : ""}>${esc(st.text)}</b></span>`
+        : "";
+    })
+    .filter(Boolean)
+    .join("");
+  return `<details class="sr" data-k="rs${esc(g.id)}" data-series="${esc(key)}"${S.openSeries.has(key) ? " open" : ""}>
+    <summary><div><div class="nm">${esc(withoutYear(g.name))}</div>${line ? `<div class="stand"><span class="vh">${esc(standings(played))}</span><span class="stand-l" aria-hidden="true">${line}</span></div>` : ""}</div>
+      <div class="nx">${last.start ? esc(dayMonth(last.start)) : ""}<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></div></summary>
+    <div class="sr-chips">${resultChips(played)}</div>
     ${g.fixtures.map(row).join("")}
   </details>`;
 }
@@ -2476,10 +2506,8 @@ view.addEventListener(
     const el = e.target;
     if (!(el instanceof HTMLDetailsElement)) return;
     if (el.dataset.series) {
-      const set = "defaultOpen" in el.dataset ? S.closedSeries : S.openSeries;
-      if (el.open === "defaultOpen" in el.dataset)
-        set.delete(el.dataset.series);
-      else set.add(el.dataset.series);
+      if (el.open) S.openSeries.add(el.dataset.series);
+      else S.openSeries.delete(el.dataset.series);
       return;
     }
     const r = route();

@@ -282,13 +282,21 @@ test(
   },
 );
 
-test("India's latest result is on screen without a tap", { skip }, async () => {
-  const v = await open("#india");
-  const first = v.page.locator("details[data-default-open]").first();
-  assert.equal(await first.evaluate((d) => d.open), true);
-  assert.ok(await first.locator(".mr").first().isVisible());
-  await v.close();
-});
+test(
+  "India's recent series are one line each, opening to their results",
+  { skip },
+  async () => {
+    const v = await open("#india");
+    const first = v.page.locator("#results ~ .list details.sr").first();
+    assert.equal(await first.evaluate((d) => d.open), false);
+    assert.match(await first.locator(".stand").innerText(), /\d–\d|NR/);
+    await first.locator("summary").click();
+    assert.equal(await first.evaluate((d) => d.open), true);
+    assert.ok(await first.locator(".rc").first().isVisible());
+    assert.ok(await first.locator(".mr").first().isVisible());
+    await v.close();
+  },
+);
 
 // The recorded live match made as hard to lay out as real matches get: long team names,
 // a declared first innings in a two-innings score, a ten-ball over with every extras
@@ -396,8 +404,6 @@ test(
       () => document.getElementById("results").getBoundingClientRect().top,
     );
     assert.ok(top > 40 && top < 120, `results heading at ${top}px`);
-    const latest = v.page.locator("details[data-default-open]").first();
-    assert.equal(await latest.evaluate((d) => d.open), true);
     // Back returns to the match the link was followed from.
     await v.page.goBack();
     await v.page.waitForFunction(
