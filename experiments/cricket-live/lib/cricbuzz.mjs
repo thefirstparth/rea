@@ -6,87 +6,18 @@
 //      the scorecard and the squads pages.
 // Everything is normalised here so the browser only sees one small, stable shape.
 
+import {
+  cached,
+  get as fetchFrom,
+  getJson as jsonFrom,
+  UpstreamError,
+} from "./http.mjs";
+import { cleanHtml } from "./html.mjs";
+
 const ORIGIN = "https://www.cricbuzz.com";
-const UA =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36";
 const IMG = "https://static.cricbuzz.com/a/img/v1";
-
-export class UpstreamError extends Error {
-  constructor(message, status = 502) {
-    super(message);
-    this.status = status;
-  }
-}
-
-// ---------- fetching + caching
-
-const cache = new Map();
-const CACHE_MAX = 300;
-
-// One in-flight load per key; on failure keep serving the last good value briefly.
-function cached(key, ttlMs, load) {
-  const now = Date.now();
-  const hit = cache.get(key);
-  if (hit && hit.exp > now) return hit.pending ?? Promise.resolve(hit.good);
-  const pending = load().then(
-    (good) => {
-      cache.set(key, { exp: Date.now() + ttlMs, good, hasGood: true });
-      return good;
-    },
-    (err) => {
-      if (hit?.hasGood) {
-        cache.set(key, {
-          exp: Date.now() + 5000,
-          good: hit.good,
-          hasGood: true,
-        });
-        return hit.good;
-      }
-      cache.delete(key);
-      throw err;
-    },
-  );
-  cache.delete(key); // re-insert so Map order tracks recency
-  cache.set(key, {
-    exp: now + ttlMs,
-    pending,
-    good: hit?.good,
-    hasGood: !!hit?.hasGood,
-  });
-  while (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
-  return pending;
-}
-
-async function get(path, accept) {
-  let res;
-  try {
-    res = await fetch(ORIGIN + path, {
-      headers: {
-        "user-agent": UA,
-        accept,
-        "accept-language": "en-IN,en;q=0.9",
-      },
-      redirect: "follow",
-      signal: AbortSignal.timeout(12000),
-    });
-  } catch (err) {
-    throw new UpstreamError(`Cricbuzz unreachable (${err.name})`);
-  }
-  if (res.status === 404) throw new UpstreamError("Not found on Cricbuzz", 404);
-  if (!res.ok) throw new UpstreamError(`Cricbuzz returned ${res.status}`);
-  return res;
-}
-
-async function getJson(path) {
-  const res = await get(path, "application/json");
-  const text = await res.text();
-  if (!text) return null;
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new UpstreamError("Cricbuzz sent malformed JSON");
-  }
-}
+const get = (path, accept) => fetchFrom(ORIGIN + path, accept, "Cricbuzz");
+const getJson = (path) => jsonFrom(ORIGIN + path, "Cricbuzz");
 
 // ---------- RSC flight payload
 
@@ -149,7 +80,7 @@ function valueAfter(text, key, from = 0) {
 const DONE = /^(complete|abandon|abandoned|no result|cancelled|result)$/i;
 const UPCOMING = /^(preview|upcoming|delayed start)$/i;
 
-export function phaseOf(state) {
+function phaseOf(state) {
   if (!state) return "upcoming";
   if (DONE.test(state)) return "done";
   if (UPCOMING.test(state)) return "upcoming";
@@ -166,9 +97,9 @@ function tagsFor(series, a, b) {
   return tags;
 }
 
-export const flagUrl = (imageId) =>
+const flagUrl = (imageId) =>
   imageId ? `${IMG}/72x54/i1/c${imageId}/i.jpg` : null;
-export const faceUrl = (imageId) =>
+const faceUrl = (imageId) =>
   imageId ? `${IMG}/75x75/i1/c${imageId}/i.jpg` : null;
 
 // ---------- match lists
@@ -293,55 +224,6 @@ export async function matches() {
 }
 
 // ---------- commentary
-
-const ALLOWED_TAGS = /<(\/?)(b|i|br|strong|em)\s*\/?>/gi;
-
-// Keep only presentational tags; everything else is escaped.
-export function cleanHtml(text) {
-  if (!text) return "";
-  const kept = [];
-  const marked = String(text).replace(ALLOWED_TAGS, (_, slash, tag) => {
-    const t =
-      tag.toLowerCase() === "strong"
-        ? "b"
-        : tag.toLowerCase() === "em"
-          ? "i"
-          : tag.toLowerCase();
-    kept.push(t === "br" ? "<br>" : `<${slash}${t}>`);
-    return `\uE000${kept.length - 1}\uE000`;
-  });
-  const escaped = marked
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\\n/g, "<br>")
-    .replace(/\n/g, "<br>");
-  return balance(
-    escaped.replace(/\uE000(\d+)\uE000/g, (_, n) => kept[Number(n)]),
-  );
-}
-
-// Drop unmatched closers and close any b/i left open, so one item can never restyle the next.
-function balance(html) {
-  const open = [];
-  const out = html.replace(/<(\/?)(b|i)>/g, (tag, slash, name) => {
-    if (!slash) {
-      open.push(name);
-      return tag;
-    }
-    const at = open.lastIndexOf(name);
-    if (at < 0) return "";
-    open.splice(at, 1);
-    return tag;
-  });
-  return (
-    out +
-    open
-      .reverse()
-      .map((t) => `</${t}>`)
-      .join("")
-  );
-}
 
 function eventOf(events) {
   const e = (events ?? []).map((x) => String(x).toLowerCase());

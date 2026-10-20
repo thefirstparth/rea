@@ -1,18 +1,19 @@
 // Zero-dependency server: static PWA from ./public plus a small JSON API that
-// adapts Cricbuzz. Run with `node server.mjs` (Node 20+). PORT defaults to 5173.
+// composes the Cricbuzz adapter (live spine) with the Cricinfo adapter (enrichment). Run with `node server.mjs` (Node 20+). PORT defaults to 5173.
 
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  UpstreamError,
   match,
   matches,
   olderCommentary,
   scorecard,
   squads,
 } from "./lib/cricbuzz.mjs";
+import * as cricinfo from "./lib/cricinfo.mjs";
+import { UpstreamError } from "./lib/http.mjs";
 
 const PUBLIC = fileURLToPath(new URL("./public/", import.meta.url));
 const PORT = Number(process.env.PORT) || 5173;
@@ -29,6 +30,32 @@ const TYPES = {
 
 const ID = /^\d{1,9}$/;
 
+// Cricbuzz ids drive the app; the Cricinfo event is found from the same fixture.
+async function cricinfoEvent(id) {
+  const { header } = await match(id);
+  return cricinfo.findEvent({
+    t1: header.t1.name,
+    t2: header.t2.name,
+    start: header.start,
+  });
+}
+
+async function cricinfoRoute(id, rest, query) {
+  const ev = await cricinfoEvent(id);
+  if (!ev) return { available: false };
+  if (!rest) return { available: true, ...(await cricinfo.info(ev)) };
+  if (rest === "commentary") {
+    const page = query.get("page");
+    if (page !== null && !/^\d{1,4}$/.test(page))
+      throw new UpstreamError("page must be a number", 400);
+    return {
+      available: true,
+      ...(await cricinfo.commentary(ev, page ? Number(page) : undefined)),
+    };
+  }
+  throw new UpstreamError("Unknown route", 404);
+}
+
 function send(res, status, body, headers = {}) {
   res.writeHead(status, headers);
   res.end(body);
@@ -44,11 +71,13 @@ function json(res, status, data, maxAge = 0) {
 async function api(path, query) {
   const parts = path.split("/").filter(Boolean); // ["api", ...]
   if (parts[1] === "matches" && parts.length === 2) return matches();
+  if (parts[1] === "ipl" && parts.length === 2) return cricinfo.iplSeason();
   if (parts[1] === "match" && ID.test(parts[2] ?? "")) {
     const id = parts[2];
     if (parts.length === 3) return match(id);
     if (parts[3] === "scorecard") return scorecard(id);
     if (parts[3] === "squads") return squads(id);
+    if (parts[3] === "cricinfo") return cricinfoRoute(id, parts[4], query);
     if (parts[3] === "commentary") {
       const inn = query.get("inn");
       const before = query.get("before");

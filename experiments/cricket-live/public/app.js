@@ -16,8 +16,20 @@ const S = {
   older: new Map(), // id -> { items, inn, before, done, busy }
   open: new Map(), // id -> Set of open innings numbers (scorecard)
   squadTeam: new Map(), // id -> 0|1
+  ci: new Map(), // id -> Cricinfo info, or { available: false }
+  ciComm: new Map(), // id -> { items, olderPage, older, busy, error }
+  ipl: null, // Cricinfo IPL season summary
   busy: 0,
 };
+
+// Commentary source: Cricinfo's live blog when it has the match, else Cricbuzz.
+let commSrc = "ci";
+try {
+  commSrc = localStorage.getItem("crease-comm") === "cb" ? "cb" : "ci";
+} catch {
+  // Storage blocked: keep the default.
+}
+const useCricinfo = (id) => commSrc === "ci" && S.ci.get(id)?.available;
 
 const $ = (sel) => document.querySelector(sel);
 const view = $("#view");
@@ -248,24 +260,27 @@ async function poll(force) {
   spin.classList.add("spin");
   const jobs = [];
   if (r.kind === "list" || !S.list) jobs.push(loadList());
-  if (r.kind === "match") {
-    const d = S.match.get(r.id);
-    if (force || !d || d.header.phase === "live" || r.tab === "live")
-      jobs.push(loadMatch(r.id));
-    if (
-      r.tab === "scorecard" &&
-      (force || !S.card.has(r.id) || d?.header.phase === "live")
-    )
-      jobs.push(loadCard(r.id));
-    if (r.tab === "squads" && (force || !S.squad.has(r.id)))
-      jobs.push(loadSquad(r.id));
-    // Hero scores fall back to the scorecard when a match is not in the lists.
-    if (!S.card.has(r.id) && S.list && !summaryOf(r.id))
-      jobs.push(loadCard(r.id));
-  }
+  if (r.kind === "list" && r.tab === "ipl" && !S.ipl) jobs.push(loadIpl());
+  if (r.kind === "match") jobs.push(...matchJobs(r, force));
   await Promise.allSettled(jobs);
   if (!--S.busy) spin.classList.remove("spin");
   render();
+}
+
+// Loads for one match view: live data refreshes every poll, finished data once.
+function matchJobs({ id, tab }, force) {
+  const d = S.match.get(id);
+  const fresh = (have) => force || d?.header.phase === "live" || !have;
+  const jobs = [];
+  if (fresh(d) || tab === "live") jobs.push(loadMatch(id));
+  if (!S.ci.has(id) || (force && tab === "info")) jobs.push(loadCi(id));
+  if (tab === "live" && commSrc === "ci" && fresh(S.ciComm.has(id)))
+    jobs.push(loadCiComm(id));
+  if (tab === "scorecard" && fresh(S.card.has(id))) jobs.push(loadCard(id));
+  if (tab === "squads" && (force || !S.squad.has(id))) jobs.push(loadSquad(id));
+  // Hero scores fall back to the scorecard when a match is not in the lists.
+  if (!S.card.has(id) && S.list && !summaryOf(id)) jobs.push(loadCard(id));
+  return jobs;
 }
 
 async function loadList() {
@@ -299,6 +314,59 @@ async function loadSquad(id) {
     S.squad.set(id, await api(`/api/match/${id}/squads`));
   } catch (e) {
     if (!S.squad.has(id)) S.squad.set(id, { error: e.message, teams: [] });
+  }
+}
+
+async function loadCi(id) {
+  try {
+    S.ci.set(id, await api(`/api/match/${id}/cricinfo`));
+  } catch (e) {
+    // Cricinfo is an enrichment: a failure leaves the Cricbuzz view intact.
+    if (!S.ci.has(id)) S.ci.set(id, { available: false, error: e.message });
+  }
+}
+
+async function loadCiComm(id) {
+  const prev = S.ciComm.get(id) ?? { items: [], older: [], olderPage: null };
+  try {
+    const got = await api(`/api/match/${id}/cricinfo/commentary`);
+    if (!got.available) return;
+    // Older pages already loaded keep their place; the latest pages replace the top.
+    S.ciComm.set(id, {
+      ...prev,
+      items: got.items,
+      olderPage: prev.older.length ? prev.olderPage : got.olderPage,
+      error: null,
+    });
+  } catch (e) {
+    S.ciComm.set(id, { ...prev, error: e.message });
+  }
+}
+
+async function loadCiOlder(id) {
+  const c = S.ciComm.get(id);
+  if (!c?.olderPage || c.busy) return;
+  c.busy = true;
+  render();
+  try {
+    const got = await api(
+      `/api/match/${id}/cricinfo/commentary?page=${c.olderPage}`,
+    );
+    c.older.push(...got.items);
+    c.olderPage = got.olderPage;
+    c.error = null;
+  } catch (e) {
+    c.error = e.message;
+  }
+  c.busy = false;
+  render();
+}
+
+async function loadIpl() {
+  try {
+    S.ipl = await api("/api/ipl");
+  } catch {
+    // The IPL card falls back to a generic off-season note.
   }
 }
 
@@ -342,13 +410,13 @@ async function loadOlder(id) {
 }
 
 function commentary(id) {
-  const d = S.match.get(id);
+  const ci = useCricinfo(id) ? S.ciComm.get(id) : null;
+  const sources = ci
+    ? [ci.items, ci.older]
+    : [S.match.get(id)?.commentary ?? [], S.older.get(id)?.items ?? []];
   const seen = new Set();
   const out = [];
-  for (const c of [
-    ...(d?.commentary ?? []),
-    ...(S.older.get(id)?.items ?? []),
-  ]) {
+  for (const c of sources.flat()) {
     const k = `${c.kind}${c.ts}`;
     if (seen.has(k)) continue;
     seen.add(k);
@@ -502,21 +570,62 @@ function listView(tab) {
           `Next up ${dayLabel(next[0].start).toLowerCase()} at ${timeFmt.format(next[0].start)}: ${next[0].t1.short} v ${next[0].t2.short}.`,
         )
       : "";
-    if (tab === "ipl" && !ms.length)
-      why =
-        "No IPL fixtures appear in the live, upcoming or recent feeds. The season usually runs March to May.";
+    if (tab === "ipl" && !ms.length) why = iplOffSeason();
     html += empty(
       what,
       `${why}${n ? ` <a href="#all" style="color:var(--accent);font-weight:650">${n} other match${n > 1 ? "es" : ""} live →</a>` : ""}`,
       true,
     );
+    if (tab === "ipl" && !ms.length) html += iplLatest();
   }
   const cap = tab === "now" ? 4 : 12;
   if (next.length)
     html += `<div class="sec"><span>Up next</span></div><div class="list">${next.slice(0, cap).map(row).join("")}</div>`;
   if (done.length)
     html += `<div class="sec"><span>Results</span></div><div class="list">${done.slice(0, cap).map(row).join("")}</div>`;
-  return html + foot();
+  return html + foot(S.list?.asOf, S.listErr, tab === "ipl" && !!S.ipl);
+}
+
+const shortDate = new Intl.DateTimeFormat(undefined, {
+  day: "numeric",
+  month: "short",
+});
+
+function iplOffSeason() {
+  const ipl = S.ipl;
+  if (!ipl?.seasonStart)
+    return "No IPL fixtures appear in the current feeds. The season usually runs March to May.";
+  const year = new Date(ipl.seasonStart).getFullYear();
+  return esc(
+    `IPL ${year} ran ${shortDate.format(ipl.seasonStart)} to ${shortDate.format(ipl.seasonEnd)}. Fixtures for the next season appear here once they're scheduled.`,
+  );
+}
+
+// The last IPL result Cricinfo lists, usually the final.
+function iplLatest() {
+  const m = S.ipl?.latest?.[0];
+  if (!m) return "";
+  const rows = m.sides
+    .map(
+      (x) =>
+        `<div class="side${m.winner && !x.won ? " lose" : ""}"><span class="flag mono" aria-hidden="true">${esc(
+          x.name
+            .split(/\s+/)
+            .map((w) => w[0])
+            .join(""),
+        )}</span><span class="nm">${esc(x.name)}</span><span class="sc" style="font-size:1rem">${esc(x.score)}</span></div>`,
+    )
+    .join("");
+  const line = [
+    m.winner ? `${m.winner} won` : m.state,
+    m.potm ? `Player of the match: ${m.potm}` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return `<div class="sec" data-k="iplh"><span>Last result</span><small>${m.date ? esc(dayFmt.format(m.date)) : ""}</small></div>
+    <div class="card" data-k="ipll"><div class="dim" style="font-size:var(--t-meta);margin-bottom:8px">${esc(m.name)}</div><div class="sides">${rows}</div>
+    <div style="font-size:var(--t-meta);font-weight:650;margin-top:10px">${esc(line)}</div>
+    ${m.link ? `<a class="more" style="padding:12px 0 0;margin-top:10px" href="${esc(m.link)}" target="_blank" rel="noopener noreferrer">Scorecard on ESPNcricinfo →</a>` : ""}</div>`;
 }
 
 function empty(title, body, rawBody = false) {
@@ -527,9 +636,10 @@ function errorCard(msg) {
   return `<div class="empty" data-k="err"><b class="err">Couldn't load scores</b><span>${esc(msg)}</span><span><button class="pill" type="button" data-act="retry">Try again</button></span></div>`;
 }
 
-function foot(asOf = S.list?.asOf, err = S.listErr) {
+function foot(asOf = S.list?.asOf, err = S.listErr, cricinfo = false) {
   if (!asOf) return "";
-  return `<p class="foot" data-k="foot">${err ? `<span class="err">Refresh failed: ${esc(err)}</span> · ` : ""}Updated ${esc(ago(asOf))} · Data from Cricbuzz</p>`;
+  const from = cricinfo ? "Cricbuzz and Cricinfo" : "Cricbuzz";
+  return `<p class="foot" data-k="foot">${err ? `<span class="err">Refresh failed: ${esc(err)}</span> · ` : ""}Updated ${esc(ago(asOf))} · Data from ${from}</p>`;
 }
 
 // ---------- match view
@@ -610,7 +720,7 @@ function matchView(r) {
   else if (r.tab === "scorecard") body = scorecardTab(id, h);
   else if (r.tab === "squads") body = squadsTab(id);
   else body = infoTab(id, d);
-  return `${heroHtml}${seg}<div data-k="body-${r.tab}">${body}</div>${foot(d.asOf, err)}`;
+  return `${heroHtml}${seg}<div data-k="body-${r.tab}">${body}</div>${foot(d.asOf, err, !!S.ci.get(id)?.available)}`;
 }
 
 function ballChip(t) {
@@ -648,22 +758,47 @@ function liveTab(id, d) {
       ${mini.lastWicket ? `<div class="kv"><span class="lbl">Last wicket</span>${esc(mini.lastWicket.replace(/\s+/g, " "))}</div>` : ""}
     </div>`;
   }
-  const items = commentary(id);
-  const o = S.older.get(id);
+  const ci = useCricinfo(id);
+  const source = ci ? "Cricinfo" : "Cricbuzz";
   html += `<div class="sec" data-k="ch"><span>Commentary</span>${d.header.phase === "live" ? `<small>Auto-updating</small>` : ""}</div>`;
+  if (S.ci.get(id)?.available) {
+    const i = ci ? 1 : 0;
+    html += `<div class="seg sub" data-k="srcseg" style="--n:2;--i:${i}"><i class="thumb" aria-hidden="true"></i>
+      <button type="button" data-act="src" data-src="cb" aria-pressed="${!ci}">Cricbuzz</button>
+      <button type="button" data-act="src" data-src="ci" aria-pressed="${!!ci}">Cricinfo live blog</button></div>`;
+  }
+  const items = commentary(id);
   if (!items.length) {
-    html += empty(
-      "No commentary yet",
-      d.header.phase === "upcoming"
-        ? "Ball-by-ball starts with the toss."
-        : "Cricbuzz has no commentary for this match.",
-    );
+    const waiting = ci && !S.ciComm.has(id);
+    html += waiting
+      ? skeleton(1)
+      : empty(
+          "No commentary yet",
+          d.header.phase === "upcoming"
+            ? "Ball-by-ball starts with the toss."
+            : `${source} has no commentary for this match.`,
+        );
     return html;
   }
-  html += `<div class="card flush" data-k="cm"><div class="comm">${items.map(commItem).join("")}</div>
-    ${o?.done ? `<button class="more" type="button" disabled>Start of commentary</button>` : `<button class="more" type="button" data-act="older"${o?.busy ? " disabled" : ""}>${o?.busy ? "Loading…" : o?.error ? `Couldn't load (${esc(o.error)}). Try again` : "Load earlier commentary"}</button>`}
-  </div>`;
+  html += `<div class="card flush" data-k="cm-${ci ? "ci" : "cb"}"><div class="comm">${items.map(commItem).join("")}</div>${ci ? ciMore(id) : cbMore(id)}</div>`;
   return html;
+}
+
+function moreButton(act, state) {
+  if (state.done)
+    return `<button class="more" type="button" disabled>Start of commentary</button>`;
+  const label = state.busy
+    ? "Loading…"
+    : state.error
+      ? `Couldn't load (${esc(state.error)}). Try again`
+      : "Load earlier commentary";
+  return `<button class="more" type="button" data-act="${act}"${state.busy ? " disabled" : ""}>${label}</button>`;
+}
+
+const cbMore = (id) => moreButton("older", S.older.get(id) ?? {});
+function ciMore(id) {
+  const c = S.ciComm.get(id) ?? {};
+  return moreButton("ci-older", { ...c, done: !c.olderPage });
 }
 
 function commItem(c) {
@@ -796,7 +931,57 @@ function infoTab(id, d) {
   ].filter(([, v]) => v);
   return `<div class="card flush" data-k="info">${rows.map(([k, v]) => `<div class="kv" style="border-top:0"><span class="lbl">${esc(k)}</span>${esc(v)}</div>`).join("")}
     ${h.potm.map((p) => `<div class="potm"><img class="face" src="${esc(p.face ?? "")}" alt="" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'"><div><span class="kv" style="padding:0;border:0"><span class="lbl">Player of the match</span></span><b>${esc(p.name)}</b><div class="dim" style="font-size:var(--t-meta)">${esc(p.line)}</div></div></div>`).join("")}
-  </div>`;
+  </div>${cricinfoInfo(id)}`;
+}
+
+const ROLE = {
+  umpire: "Umpires",
+  "tv umpire": "TV umpire",
+  referee: "Match referee",
+  "reserve umpire": "Reserve umpire",
+};
+
+// What Cricinfo adds: officials, hours of play, close of play, debuts, session notes.
+function cricinfoInfo(id) {
+  const ci = S.ci.get(id);
+  if (!ci)
+    return `<div class="sec" data-k="cih"><span>From Cricinfo</span></div>${skeleton(1)}`;
+  if (!ci.available) return "";
+  const officials = new Map();
+  for (const o of ci.officials) {
+    const role = ROLE[o.role] ?? o.role;
+    if (!officials.has(role)) officials.set(role, []);
+    officials.get(role).push(o.country ? `${o.name} (${o.country})` : o.name);
+  }
+  const rows = [
+    ["Match", ci.notes.matchnumber],
+    ["Days", ci.notes.matchdays],
+    ["Hours of play", ci.notes.hoursofplay],
+    ...[...officials].map(([role, names]) => [role, names.join(", ")]),
+    [
+      "Ground",
+      ci.venue
+        ? [
+            ci.venue.name,
+            ci.venue.capacity
+              ? `capacity ${ci.venue.capacity.toLocaleString()}`
+              : "",
+          ]
+            .filter(Boolean)
+            .join(" · ")
+        : "",
+    ],
+    ["Weather", ci.weather],
+    ["Live commentary", ci.notes.livecommentator],
+  ].filter(([, v]) => v);
+  const list = (label, items) =>
+    items.length
+      ? `<div class="kv"><span class="lbl">${esc(label)}</span>${items.map((t) => `<div>${esc(t)}</div>`).join("")}</div>`
+      : "";
+  const debuts = ci.debuts.map((t) => `${t.team}: ${t.players.join(", ")}`);
+  return `<div class="sec" data-k="cih"><span>From Cricinfo</span>${ci.link ? `<small><a href="${esc(ci.link)}" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">Open match →</a></small>` : ""}</div>
+    <div class="card flush" data-k="ciinfo">${rows.map(([k, v]) => `<div class="kv" style="border-top:0"><span class="lbl">${esc(k)}</span>${esc(v)}</div>`).join("")}
+    ${list("Debuts", debuts)}${list("Close of play", ci.closeOfPlay)}${list("Latest notes", ci.milestones)}</div>`;
 }
 
 // ---------- render
@@ -880,7 +1065,18 @@ view.addEventListener("click", (e) => {
   const r = route();
   if (btn.dataset.act === "retry") refresh(true);
   else if (btn.dataset.act === "older" && r.kind === "match") loadOlder(r.id);
-  else if (btn.dataset.act === "team" && r.kind === "match") {
+  else if (btn.dataset.act === "ci-older" && r.kind === "match")
+    loadCiOlder(r.id);
+  else if (btn.dataset.act === "src" && r.kind === "match") {
+    commSrc = btn.dataset.src === "cb" ? "cb" : "ci";
+    try {
+      localStorage.setItem("crease-comm", commSrc);
+    } catch {
+      // Storage blocked: the choice lasts for this visit only.
+    }
+    render();
+    refresh(true);
+  } else if (btn.dataset.act === "team" && r.kind === "match") {
     S.squadTeam.set(r.id, Number(btn.dataset.i));
     render();
   }
