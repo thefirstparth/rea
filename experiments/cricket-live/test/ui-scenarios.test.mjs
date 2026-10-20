@@ -140,15 +140,22 @@ test(
     const rows = v.page.locator(".tbl.pts tbody tr");
     assert.equal(await rows.count(), 10);
     assert.equal(await v.page.locator(".tbl.pts tr.cut").count(), 1);
-    // Follow the table's leader; the choice is stored and shows on Now.
-    const top = rows.first().locator("button.tm");
-    const name = (await top.getAttribute("aria-label")).replace(/^Follow /, "");
+    // Follow the table's leader by its star; the choice is stored and shows on Now.
+    const stored = () =>
+      v.page.evaluate(() => localStorage.getItem("crease-team"));
+    const top = rows.first().locator("button.star-btn");
+    const name = (await top.getAttribute("aria-label")).match(/\((.+)\)$/)[1];
     await top.click();
     assert.equal(await top.getAttribute("aria-pressed"), "true");
-    assert.match(
-      await v.page.evaluate(() => localStorage.getItem("crease-team")),
-      new RegExp(name),
-    );
+    assert.match(await stored(), new RegExp(name));
+    // A tap on another team's name changes nothing; its star switches, with an Undo.
+    await rows.nth(1).locator(".who").click();
+    assert.match(await stored(), new RegExp(name));
+    await rows.nth(1).locator("button.star-btn").click();
+    assert.doesNotMatch(await stored(), new RegExp(name));
+    await v.page.locator("#toast").getByText("instead of").waitFor();
+    await v.page.locator("#toast button", { hasText: "Undo" }).click();
+    assert.match(await stored(), new RegExp(name));
     await v.page.evaluate(() => (location.hash = "#now"));
     await v.page.locator('[data-k="fh"]').waitFor();
     assert.match(await v.page.locator("#view").innerText(), new RegExp(name));

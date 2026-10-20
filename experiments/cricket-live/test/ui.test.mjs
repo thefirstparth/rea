@@ -115,13 +115,48 @@ test(
 );
 
 test(
-  "a junk address goes home; an unknown match says so",
+  "a junk address goes home; a broken or unknown match link says so",
   { skip },
   async () => {
-    const v = await open("#m/abc<script>");
+    const v = await open("#junk<script>");
     assert.equal(await v.page.evaluate(() => location.hash), "#now");
+    await v.page.evaluate(() => (location.hash = "#m/abc<script>"));
+    await v.page.getByText("We couldn't find this match").waitFor();
+    assert.equal(await v.page.locator("#view script").count(), 0);
     await v.page.evaluate(() => (location.hash = "#m/999999999/live"));
     await v.page.getByText("We couldn't find this match").waitFor();
+    await v.close();
+  },
+);
+
+// A Wi-Fi login page, a cut-off body or an answer of the wrong shape is a failure the
+// page says and retries, never a page stuck loading or broken until a reload.
+test(
+  "an unreadable or wrong-shaped answer shows an error and recovers",
+  { skip },
+  async () => {
+    // Info doesn't load the scorecard: opening Scorecard does, through the bad answer.
+    const v = await open(`#m/${done}/info`);
+    let bad = "<html>Wi-Fi login</html>";
+    await v.page.route(/\/api\/match\/\d+\/scorecard$/, (r) =>
+      r.fulfill({ status: 200, contentType: "text/html", body: bad }),
+    );
+    await v.page.locator(".seg:not(.sub) a", { hasText: "Scorecard" }).click();
+    await v.page.getByText("Couldn't load the scorecard").waitFor();
+    bad = '{"error":"rate limited"}';
+    await v.page
+      .locator("#view")
+      .getByRole("button", { name: "Try again now" })
+      .click();
+    await v.page.getByText("Couldn't load the scorecard").waitFor();
+    assert.deepEqual(v.errors, []);
+    await v.page.unroute(/\/api\/match\/\d+\/scorecard$/);
+    await v.page.locator("#fresh").click();
+    await v.page.locator("details.inn").first().waitFor();
+    assert.doesNotMatch(
+      await v.page.locator("#freshText").innerText(),
+      /Checking/,
+    );
     await v.close();
   },
 );
@@ -183,10 +218,12 @@ test(
       () => document.activeElement?.id === "results",
     );
     assert.equal(await v.page.evaluate(() => location.hash), "#india/results");
-    const top = await v.page.evaluate(
-      () => document.getElementById("results").getBoundingClientRect().top,
-    );
-    assert.ok(top > 40 && top < 120, `results heading at ${top}px`);
+    // Just under the top bar.
+    const [top, bar] = await v.page.evaluate(() => [
+      document.getElementById("results").getBoundingClientRect().top,
+      document.getElementById("top").getBoundingClientRect().bottom,
+    ]);
+    assert.ok(top >= bar && top < bar + 100, `results heading at ${top}px`);
     // Back returns to the match the link was followed from.
     await v.page.goBack();
     await v.page.waitForFunction(
@@ -204,12 +241,36 @@ test(
 );
 
 test(
+  "reopened without a connection, Crease shows its last scores and says it's offline",
+  { skip },
+  async () => {
+    const v = await open("#now", { serviceWorkers: "allow" });
+    // The worker takes over the page, then a reload goes through it and is kept.
+    await v.page.evaluate(async () => {
+      await navigator.serviceWorker.ready;
+      if (!navigator.serviceWorker.controller)
+        await new Promise((ok) =>
+          navigator.serviceWorker.addEventListener("controllerchange", ok),
+        );
+    });
+    await v.page.reload();
+    await v.page.locator(".poster").waitFor();
+    await v.page.context().setOffline(true);
+    await v.page.reload();
+    await v.page.locator(".poster").waitFor();
+    assert.match(await v.page.locator("#freshText").innerText(), /^Offline/);
+    await v.page.context().setOffline(false);
+    await v.close();
+  },
+);
+
+test(
   "the top bar says how fresh the data is, and tapping it refreshes",
   { skip },
   async () => {
     const fresh = (v) => v.page.locator("#freshText").innerText();
     const done_ = await open(`#m/${done}/live`);
-    assert.equal(await fresh(done_), "Final");
+    assert.equal(await fresh(done_), "Finished");
     await done_.close();
     const next_ = await open(`#m/${next}/info`);
     assert.equal(await fresh(next_), "Not started");

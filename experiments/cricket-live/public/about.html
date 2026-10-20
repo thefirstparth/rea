@@ -50,7 +50,12 @@
     <header class="top">
       <div class="top-in">
         <div class="top-left">
-          <a class="icon back" href="/#now" aria-label="Back to Crease">
+          <a
+            class="icon back"
+            href="/#now"
+            aria-label="Back to Crease"
+            data-back
+          >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M15 5l-7 7 7 7" />
             </svg>
@@ -95,16 +100,25 @@
         <li><b>crease-team</b>: the team you follow, if any.</li>
         <li><b>crease-wc</b>: when the World Cup tab shows.</li>
       </ul>
-      <p>Clearing this site's data in your browser removes them all.</p>
+      <p>
+        So that Crease opens without a connection, your browser also keeps a
+        copy of Crease's own files and the last scores it loaded (cache
+        storage). That is public cricket data, nothing about you.
+      </p>
+      <p>Clearing this site's data in your browser removes all of it.</p>
 
       <h2 id="alerts">Alerts</h2>
       <p>
-        Alerts only work after you allow notifications in your browser. Crease
-        then checks for match starts, wickets, DRS reviews and milestones while
-        it is open, and shows the notification itself. To show notifications on
-        Android, browsers need a small background script (a service worker);
-        Crease installs one only when you turn alerts on, removes it when you
-        turn them off, and it stores nothing.
+        Alerts cover India and IPL matches, and the team you follow if you
+        follow one. They only work after you allow notifications in your
+        browser. Crease then checks for match starts, wickets, DRS reviews and
+        milestones while it is open, and shows the notification itself.
+      </p>
+      <p>
+        Crease installs a small background script (a service worker) on your
+        first visit. It keeps the offline copy described above and shows the
+        alert notifications. It stores nothing about you, and it doesn't run a
+        push service: nothing reaches you while Crease is closed.
       </p>
 
       <h2>Other sites your browser contacts</h2>
@@ -123,7 +137,31 @@
         and ESPNcricinfo don't see your browser for that.
       </p>
 
-      <p class="foot"><a class="link" href="/#now">Back to Crease</a></p>
+      <h2>Crease's own server</h2>
+      <p>
+        Your browser asks Crease's server, hosted on Vercel, for the scores of
+        the pages you open. Like any web host, Vercel sees your IP address and
+        the addresses requested, and keeps short-lived request logs. Crease
+        itself records nothing about who asks for what.
+      </p>
+
+      <p class="foot">
+        <a class="link" href="/#now" data-back>Back to Crease</a>
+      </p>
     </main>
+    <script>
+      // Back to where you were in Crease, as the browser's Back button would; a
+      // direct visit goes to the home page.
+      for (const a of document.querySelectorAll("a[data-back]"))
+        a.addEventListener("click", (e) => {
+          if (
+            document.referrer.startsWith(location.origin + "/") &&
+            history.length > 1
+          ) {
+            e.preventDefault();
+            history.back();
+          }
+        });
+    </script>
   </body>
 </html>
