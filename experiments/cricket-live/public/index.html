@@ -90,7 +90,14 @@
               >crease</a
             >
           </div>
-          <div class="top-title" id="topTitle" aria-hidden="true"></div>
+          <!-- How fresh the data on screen is; tap to refresh. The page title joins it
+               once the page heading scrolls away. -->
+          <button class="top-mid" id="fresh" type="button">
+            <span class="top-title" id="topTitle" aria-hidden="true"></span>
+            <span class="fresh" id="freshLine" hidden
+              ><i aria-hidden="true"></i><span id="freshText"></span
+            ></span>
+          </button>
           <div class="top-btns">
             <button
               class="icon alerts"

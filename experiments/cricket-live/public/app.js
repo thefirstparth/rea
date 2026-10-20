@@ -1084,7 +1084,7 @@ function homeView() {
           );
   const focus = live[0] ?? next;
   if (focus) html += currentSeries(focus);
-  return html + foot(S.list.asOf, S.listErr || S.schedErr);
+  return html + foot();
 }
 
 // India: the live or next match, recent results by series, and every series ahead.
@@ -1105,7 +1105,7 @@ function indiaView() {
       "No India fixtures listed",
       "Cricbuzz hasn't published India's next matches yet.",
     );
-  return html + foot(S.list.asOf, S.listErr || S.schedErr);
+  return html + foot();
 }
 
 function iplView() {
@@ -1120,7 +1120,7 @@ function iplView() {
   if (done.length)
     html += `<div class="sec" data-k="rh"><span>Results</span></div><div class="list" data-k="rl">${done.map(row).join("")}</div>`;
   if (!live.length && !upcoming("ipl").length) html += iplLatest();
-  return html + foot(S.list.asOf, S.listErr || S.schedErr, !!S.ipl);
+  return html + foot();
 }
 
 // All live order: India and IPL first, then internationals, leagues, domestic.
@@ -1539,15 +1539,10 @@ function errorCard(msg, what = "scores") {
   return `<div class="empty" data-k="err"><b class="err">Couldn't load ${esc(what)}</b><span>${esc(sentence(msg))} Crease tries again every 15 seconds.</span><span><button class="btn" type="button" data-act="retry">Try again now</button></span></div>`;
 }
 
-// When the data on screen was fetched, a way to refresh it, and where to read about
-// sources and privacy. After a failed refresh it says the data is from the last success.
-function foot(asOf = S.list?.asOf, err = S.listErr) {
-  if (!asOf) return "";
-  const when = err
-    ? `<span class="err">Couldn't refresh. ${esc(sentence(err))}</span> Showing data from ${esc(ago(asOf))}`
-    : `Updated ${esc(ago(asOf))}`;
-  return `<p class="foot" data-k="foot">${when} · <button class="link" type="button" data-act="retry">Refresh</button> · <a class="link" href="/about.html">About &amp; privacy</a></p>`;
-}
+// Where to read about sources and privacy. How fresh the data is, and refreshing it,
+// live in the top bar (freshness()).
+const foot = () =>
+  '<p class="foot" data-k="foot"><a class="link" href="/about.html">About &amp; privacy</a></p>';
 
 // ---------- match view
 
@@ -1637,7 +1632,7 @@ function matchView(r) {
   else if (r.tab === "scorecard") body = scorecardTab(id, h);
   else if (r.tab === "squads") body = squadsTab(id);
   else body = infoTab(id, d);
-  return `${heroHtml}${seg}<div data-k="body-${r.tab}">${body}</div>${foot(d.asOf, err)}`;
+  return `${heroHtml}${seg}<div data-k="body-${r.tab}">${body}</div>${foot()}`;
 }
 
 // The first section is "Commentary" in every phase: one name for one place.
@@ -2115,6 +2110,100 @@ function cricinfoInfo(id) {
     ${ci.link ? `<a class="to-tab" data-k="cilink" href="${esc(ci.link)}" target="_blank" rel="noopener noreferrer">Open this match on ESPNcricinfo (new tab) →</a>` : ""}`;
 }
 
+// ---------- freshness (the top bar's second line)
+
+// What the reader is looking at, how old it is, and whether it can still change:
+// grey while fine, amber once a minute has passed without new data (normal polling
+// and caching stay under that), red when refreshing fails, no timer when nothing will
+// change (a break, a finished or unstarted match). Ages are from when Crease fetched
+// the data from its source (asOf).
+const FRESH_WARN = 60000;
+let checking = false;
+
+function viewData(r) {
+  if (r.kind === "list") return { asOf: S.list?.asOf, err: S.listErr };
+  const d = S.match.get(r.id);
+  const h = d?.header ?? summaryOf(r.id);
+  const still = !h
+    ? ""
+    : h.phase === "done"
+      ? "Final"
+      : h.phase === "upcoming"
+        ? "Not started"
+        : paused(h)
+          ? stateWord(h)
+          : "";
+  // The scorecard has its own fetch time, which can trail the live score.
+  if (r.tab === "scorecard")
+    return { asOf: S.card.get(r.id)?.asOf, err: S.cardErr.get(r.id), still };
+  return {
+    asOf: d?.asOf ?? (d ? null : S.list?.asOf),
+    err: S.matchErr.get(r.id),
+    still,
+  };
+}
+
+const minsOld = (ms) => {
+  const m = Math.round(ms / 60000);
+  return m < 1 ? `${Math.max(1, Math.round(ms / 1000))}s old` : `${m} min old`;
+};
+
+function freshness(r) {
+  if (checking) return { cls: "spin", text: "Checking…" };
+  const { asOf, err, still } = viewData(r);
+  const fail = navigator.onLine === false ? "Offline" : "Refresh failed";
+  if (!asOf) return err ? { cls: "bad", text: fail } : null;
+  if (err)
+    return {
+      cls: "bad",
+      text: fail,
+      more: ` · ${minsOld(Date.now() - asOf)}`,
+    };
+  if (still) return { cls: "", text: still, asOf };
+  // On narrow screens the line drops its first word: "18s ago".
+  return {
+    cls: Date.now() - asOf > FRESH_WARN ? "old" : "",
+    lead: "Updated ",
+    text: ago(asOf),
+    asOf,
+  };
+}
+
+let shownAsOf = null;
+function showFreshness(r) {
+  const f = freshness(r);
+  const line = $("#freshLine");
+  line.hidden = !f;
+  const words = f ? `${f.lead ?? ""}${f.text}${f.more ?? ""}` : "";
+  $("#fresh").setAttribute(
+    "aria-label",
+    words ? `${words}. Refresh now` : "Refresh now",
+  );
+  if (!f) return;
+  $("#freshText").innerHTML =
+    `${f.lead ? `<span class="fx">${esc(f.lead)}</span>` : ""}${esc(f.text)}${f.more ? `<span class="fx">${esc(f.more)}</span>` : ""}`;
+  const tick = f.asOf && shownAsOf && f.asOf !== shownAsOf;
+  if (f.asOf) shownAsOf = f.asOf;
+  line.className = `fresh${f.cls ? ` ${f.cls}` : ""}`;
+  // New data: the dot blinks once.
+  if (tick) {
+    void line.offsetWidth;
+    line.classList.add("tick");
+  }
+}
+
+async function refreshNow() {
+  if (checking) return;
+  checking = true;
+  render();
+  try {
+    await refresh(true);
+  } finally {
+    checking = false;
+    render();
+  }
+}
+
 // ---------- render
 
 // Tints the top of the page with the view's team colour; see TEAM_COLOR.
@@ -2162,6 +2251,7 @@ function render() {
         : "Match"
       : headingOf(r.tab);
   $("#topTitle").textContent = title;
+  showFreshness(r);
   document.title =
     r.kind === "match" && d
       ? `${title} · ${d.header.status} · Crease`
@@ -2186,6 +2276,8 @@ function onScroll() {
   );
 }
 addEventListener("scroll", onScroll, { passive: true });
+$("#fresh").addEventListener("click", refreshNow);
+
 // Back online: refresh now rather than at the next poll.
 addEventListener("online", () => refresh(true));
 document.addEventListener("visibilitychange", () => {
