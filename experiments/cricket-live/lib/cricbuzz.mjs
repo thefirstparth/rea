@@ -21,9 +21,8 @@ const getJson = (path) => jsonFrom(ORIGIN + path, "Cricbuzz");
 
 // ---------- RSC flight payload
 
-async function getFlight(path) {
-  const res = await get(path, "text/html");
-  const html = await res.text();
+// Join a page's self.__next_f.push([1, "..."]) chunks into the flight text.
+function flightOf(html) {
   let flight = "";
   const re = /self\.__next_f\.push\((\[[\s\S]*?\])\)<\/script>/g;
   for (const m of html.matchAll(re)) {
@@ -34,15 +33,19 @@ async function getFlight(path) {
       // A chunk that is not plain JSON carries no data we read.
     }
   }
+  return flight;
+}
+
+async function getFlight(path) {
+  const res = await get(path, "text/html");
+  const flight = flightOf(await res.text());
   if (!flight) throw new UpstreamError("Cricbuzz page carried no data payload");
   return flight;
 }
 
-// Slice one balanced JSON value that starts at `start` and parse it.
-function jsonAt(text, start) {
-  const open = text[start];
-  const close = open === "{" ? "}" : open === "[" ? "]" : null;
-  if (!close) return undefined;
+// End (exclusive) of the balanced JSON object or array starting at `start`, or -1.
+function jsonEnd(text, start) {
+  if (text[start] !== "{" && text[start] !== "[") return -1;
   let depth = 0;
   let inStr = false;
   for (let i = start; i < text.length; i++) {
@@ -54,16 +57,21 @@ function jsonAt(text, start) {
     else if (c === "{" || c === "[") depth++;
     else if (c === "}" || c === "]") {
       depth--;
-      if (depth === 0) {
-        try {
-          return JSON.parse(text.slice(start, i + 1), rscValue);
-        } catch {
-          return undefined;
-        }
-      }
+      if (depth === 0) return i + 1;
     }
   }
-  return undefined;
+  return -1;
+}
+
+// Parse the balanced JSON value that starts at `start`.
+function jsonAt(text, start) {
+  const end = jsonEnd(text, start);
+  if (end < 0) return undefined;
+  try {
+    return JSON.parse(text.slice(start, end), rscValue);
+  } catch {
+    return undefined;
+  }
 }
 
 // React's flight encoding writes absent values as the string "$undefined".
@@ -212,6 +220,9 @@ const LIST_PAGES = {
   upcoming: "/cricket-match/live-scores/upcoming-matches",
 };
 
+const homeMatches = (json) =>
+  (json?.matches ?? []).map(summary).filter(Boolean);
+
 function listPage(kind, ttl) {
   return cached(`list:${kind}`, ttl, async () =>
     matchesFromFlight(await getFlight(LIST_PAGES[kind])),
@@ -237,8 +248,7 @@ export async function matches() {
     }
   };
   if (live.status === "fulfilled") add(live.value);
-  if (home.status === "fulfilled")
-    add((home.value?.matches ?? []).map(summary).filter(Boolean));
+  if (home.status === "fulfilled") add(homeMatches(home.value));
   if (recent.status === "fulfilled") add(recent.value);
   if (upcoming.status === "fulfilled") add(upcoming.value);
   const all = [...byId.values()];
@@ -277,22 +287,19 @@ function teamFixtures(id) {
   );
 }
 
+// A series page also carries the ticker's matches; keep this series' own.
+const seriesFixturesFrom = (flight, id) =>
+  fixturesFrom(flight, "matchDetails").filter((m) => m.seriesId === id);
+
 function seriesFixtures(id) {
   return cached(`series:${id}`, SCHEDULE_TTL, async () =>
-    fixturesFrom(
-      await getFlight(`/cricket-series/${id}/x/matches`),
-      "matchDetails",
-    ).filter((m) => m.seriesId === id),
+    seriesFixturesFrom(await getFlight(`/cricket-series/${id}/x/matches`), id),
   );
 }
 
 // The current or next IPL season from Cricbuzz's series calendar. Its dates are
 // Cricbuzz's listing and can precede the official fixture release.
-async function iplSeries() {
-  const cal = await cached("series-calendar", 6 * 3600000, () =>
-    getJson("/api/series/schedule"),
-  );
-  const now = Date.now();
+function iplSeriesFrom(cal, now) {
   return (
     (cal?.seriesMapProto ?? [])
       .flatMap((month) => month.series ?? [])
@@ -305,6 +312,13 @@ async function iplSeries() {
       .filter((x) => isIpl(x.name) && (x.end ?? Infinity) >= now)
       .sort((a, b) => (a.start ?? 0) - (b.start ?? 0))[0] ?? null
   );
+}
+
+async function iplSeries() {
+  const cal = await cached("series-calendar", 6 * 3600000, () =>
+    getJson("/api/series/schedule"),
+  );
+  return iplSeriesFrom(cal, Date.now());
 }
 
 export async function schedule() {
@@ -498,10 +512,7 @@ function miniscore(ms) {
   };
 }
 
-export async function match(id) {
-  const raw = await cached(`comm:${id}`, 10000, () =>
-    getJson(`/api/mcenter/comm/${id}`),
-  );
+function matchFrom(raw) {
   // Cricbuzz opens a match centre shortly before the start; until then the feed is empty.
   if (!raw?.matchHeader)
     throw new UpstreamError(
@@ -512,11 +523,21 @@ export async function match(id) {
   if (isWomens(h.series, h.t1.name, h.t2.name))
     throw new UpstreamError("Crease covers men's cricket only", 404);
   return {
-    asOf: Date.now(),
-    refresh: h.phase === "live" ? 15000 : 0,
     header: h,
     mini: miniscore(raw.miniscore),
     commentary: commList(raw.matchCommentary),
+  };
+}
+
+export async function match(id) {
+  const raw = await cached(`comm:${id}`, 10000, () =>
+    getJson(`/api/mcenter/comm/${id}`),
+  );
+  const m = matchFrom(raw);
+  return {
+    asOf: Date.now(),
+    refresh: m.header.phase === "live" ? 15000 : 0,
+    ...m,
   };
 }
 
@@ -592,16 +613,12 @@ function scorecardInnings(sc) {
   };
 }
 
-export async function scorecard(id) {
-  const flight = await cached(`scard:${id}`, 15000, () =>
-    getFlight(`/live-cricket-scorecard/${id}/x`),
-  );
+function scorecardFrom(flight, id) {
   const cards = valueAfter(flight, "scoreCard")?.filter?.(
     (c) => String(c.matchId) === String(id),
   );
   const info = valueFor(flight, "matchInfo", id);
   return {
-    asOf: Date.now(),
     innings: Array.isArray(cards)
       ? cards
           .slice()
@@ -612,6 +629,13 @@ export async function scorecard(id) {
       ? { ground: info.venueInfo.ground ?? "", city: info.venueInfo.city ?? "" }
       : null,
   };
+}
+
+export async function scorecard(id) {
+  const flight = await cached(`scard:${id}`, 15000, () =>
+    getFlight(`/live-cricket-scorecard/${id}/x`),
+  );
+  return { asOf: Date.now(), ...scorecardFrom(flight, id) };
 }
 
 // ---------- squads
@@ -647,15 +671,37 @@ function squadTeam(entry) {
   };
 }
 
+// The squads widget is the only place a side is written as {"team1":{"team":...}};
+// without it the page has no squads (searching from the start would hit the ticker).
+function squadSide(flight, key) {
+  const at = flight.indexOf(`"${key}":{"team":`);
+  return at < 0 ? null : squadTeam(valueAfter(flight, key, at));
+}
+
+const squadsFrom = (flight) => ({
+  teams: [squadSide(flight, "team1"), squadSide(flight, "team2")].filter(
+    Boolean,
+  ),
+});
+
 export async function squads(id) {
   const flight = await cached(`squads:${id}`, 60000, () =>
     getFlight(`/cricket-match-squads/${id}/x`),
   );
-  const t1 = squadTeam(
-    valueAfter(flight, "team1", flight.indexOf('"team1":{"team":')),
-  );
-  const t2 = squadTeam(
-    valueAfter(flight, "team2", flight.indexOf('"team2":{"team":')),
-  );
-  return { asOf: Date.now(), teams: [t1, t2].filter(Boolean) };
+  return { asOf: Date.now(), ...squadsFrom(flight) };
 }
+
+// Pure parsers over captured upstream payloads, for the fixture tests.
+export const parse = {
+  flight: flightOf,
+  jsonEnd,
+  list: matchesFromFlight,
+  home: homeMatches,
+  fixtures: fixturesFrom,
+  seriesFixtures: seriesFixturesFrom,
+  iplSeries: iplSeriesFrom,
+  match: matchFrom,
+  commentary: commList,
+  scorecard: scorecardFrom,
+  squads: squadsFrom,
+};
