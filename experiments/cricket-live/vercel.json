@@ -1,0 +1,19 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "outputDirectory": "public",
+  "regions": ["bom1"],
+  "rewrites": [
+    { "source": "/api/:route*", "destination": "/api/index?route=:route*" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)\\.(js|css|svg|webmanifest)",
+      "headers": [
+        {
+          "key": "cache-control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    }
+  ]
+}

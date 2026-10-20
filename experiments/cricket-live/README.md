@@ -20,6 +20,23 @@ Requires Node 20 or later. There are no dependencies and no build step. Behind a
 HTTPS proxy, run it with `NODE_USE_ENV_PROXY=1` (Node 22.21 or later) so the
 server's `fetch` respects `HTTPS_PROXY`.
 
+## Deploy to Vercel
+
+The folder is a self-contained Vercel project: `public/` is served as static
+files, and `api/index.mjs` runs the same JSON API as a function. `vercel.json`
+rewrites `/api/*` to that function and pins it to Mumbai (`bom1`), close to the
+Indian users and to the sources' Indian edge. API answers carry
+`s-maxage`, so Vercel's CDN shares each one for 10s to 1h depending on the route,
+and concurrent viewers don't multiply upstream requests.
+
+```sh
+cd experiments/cricket-live
+npx vercel@latest deploy --prod      # first run links or creates the project
+```
+
+In the Vercel dashboard, the equivalent is to import the repository and set
+**Root Directory** to `experiments/cricket-live`, with no build command.
+
 ## How it works
 
 ```
@@ -106,5 +123,9 @@ Classification:
 - Cricinfo enrichment covers only events in its current score panel (live,
   today's and very recent matches). Older matches show Cricbuzz data alone.
 - Out of season the IPL tab shows the last season's dates and its final result.
+- Both sources may treat datacenter traffic differently from home connections.
+  Cricinfo's own hosts already refuse it, which is why the ESPN API is used.
+  If a deployment shows "Cricbuzz returned 403", the source is blocking
+  Vercel's network, and the local server is the fallback.
 - There are no push notifications or service worker yet. The web manifest only
   makes the app installable.
