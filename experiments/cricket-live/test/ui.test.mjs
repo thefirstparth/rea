@@ -74,11 +74,12 @@ test("the audit catches what it is meant to catch", { skip }, async () => {
     <div style="width:600px">too wide</div>
     <button style="width:20px;height:20px">x</button>
     <img src="data:," alt="" style="width:10px;height:10px">
+    <div id="view"><div class="ph"><h1>Title</h1></div><div class="card" style="margin-top:60px">x</div></div>
   </body>`);
   const kinds = new Set(
     (await v.page.evaluate(auditScript())).map((f) => f.kind),
   );
-  for (const k of ["overlap", "contrast", "overflow", "target", "image"])
+  for (const k of ["overlap", "contrast", "overflow", "target", "image", "gap"])
     assert.ok(kinds.has(k), `audit should report ${k}`);
   await v.close();
 });

@@ -152,8 +152,8 @@ first-`matchInfo` lookup is put back.
 The browser tests (`test/ui.test.mjs`, `test/ui-scenarios.test.mjs`, over the
 harness in `test/ui-harness.mjs`) replay `test/fixtures/ui-api.json`, recorded
 by `test/capture-ui.mjs` while following an IPL side with the World Cup tab on.
-Every view is audited for overlap, overflow, clipping, contrast and tap size at
-320, 390 and 1280px in light and dark. The scenarios move the clock and the
+Every view is audited for overlap, overflow, clipping, contrast, tap size and
+empty space under the page heading at 320, 390 and 1280px in light and dark. The scenarios move the clock and the
 data: the worst live match to lay out, the IPL tab between seasons and
 mid-season (the recorded 2026 season, half of it turned back into fixtures), and
 the World Cup tab a week before its event and under each setting.

@@ -254,12 +254,9 @@ test(
       assert.deepEqual(problems, []);
       const v = await open("#ipl", { at });
       const text = await v.page.locator("#view").innerText();
-      for (const part of [
-        /Next match/i,
-        /Points table/i,
-        /Fixtures/i,
-        /Results/i,
-      ])
+      // The next match leads, straight under the heading.
+      assert.equal(await v.page.locator(".ph + .hero.next").count(), 1);
+      for (const part of [/Points table/i, /Fixtures/i, /Results/i])
         assert.match(text, part);
       assert.doesNotMatch(text, /Last season/i);
       await v.close();
