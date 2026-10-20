@@ -222,6 +222,8 @@ function iplSeasonFrom(d) {
     const c = e.competitions?.[0] ?? {};
     const sides = (c.competitors ?? []).map((x) => ({
       name: x.team?.displayName ?? "",
+      short: x.team?.abbreviation ?? null,
+      logo: x.team?.logo || null,
       score: x.score ?? "",
       won: String(x.winner) === "true",
     }));

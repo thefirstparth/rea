@@ -299,26 +299,39 @@ function seriesFixtures(id) {
 
 // The current or next IPL season from Cricbuzz's series calendar. Its dates are
 // Cricbuzz's listing and can precede the official fixture release.
-function iplSeriesFrom(cal, now) {
+// Every league series by month, from the league schedule page. The /api/series/schedule
+// route looked similar but lists only series Cricbuzz streams in the caller's country,
+// so from India (where the server runs) it left out the IPL.
+const LEAGUE_SCHEDULE = "/cricket-schedule/series/league";
+
+function leagueSeriesFrom(flight) {
+  const months = valueAfter(flight, "seriesScheduleData");
+  // Missing data is a changed page, not an empty calendar: report it as a failure.
+  if (!Array.isArray(months))
+    throw new UpstreamError("Cricbuzz's league schedule has no series list");
+  return months
+    .flatMap((month) => month?.series ?? [])
+    .map((x) => ({
+      id: x.id,
+      name: x.name ?? "",
+      start: Number(x.startDt) || null,
+      end: Number(x.endDt) || null,
+    }));
+}
+
+function iplSeriesFrom(series, now) {
   return (
-    (cal?.seriesMapProto ?? [])
-      .flatMap((month) => month.series ?? [])
-      .map((x) => ({
-        id: x.id,
-        name: x.name ?? "",
-        start: Number(x.startDt) || null,
-        end: Number(x.endDt) || null,
-      }))
+    series
       .filter((x) => isIpl(x.name) && (x.end ?? Infinity) >= now)
       .sort((a, b) => (a.start ?? 0) - (b.start ?? 0))[0] ?? null
   );
 }
 
 async function iplSeries() {
-  const cal = await cached("series-calendar", 6 * 3600000, () =>
-    getJson("/api/series/schedule"),
+  const series = await cached("league-schedule", 6 * 3600000, async () =>
+    leagueSeriesFrom(await getFlight(LEAGUE_SCHEDULE)),
   );
-  return iplSeriesFrom(cal, Date.now());
+  return iplSeriesFrom(series, Date.now());
 }
 
 export async function schedule() {
@@ -699,6 +712,7 @@ export const parse = {
   home: homeMatches,
   fixtures: fixturesFrom,
   seriesFixtures: seriesFixturesFrom,
+  leagueSeries: leagueSeriesFrom,
   iplSeries: iplSeriesFrom,
   match: matchFrom,
   commentary: commList,

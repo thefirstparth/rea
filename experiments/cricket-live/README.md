@@ -53,14 +53,14 @@ its source's formats and normalises into the shapes the client reads. The
 server composes them: Cricbuzz match ids drive every route, and the Cricinfo
 event is found from the same fixture.
 
-| App route                                  | Cricbuzz source                                                                  | Cache                    |
-| ------------------------------------------ | -------------------------------------------------------------------------------- | ------------------------ |
-| `GET /api/matches`                         | live, recent and upcoming list pages (RSC payload) and `/api/home`               | 15s to 5m                |
-| `GET /api/match/:id`                       | `/api/mcenter/comm/:id` (header, miniscore, latest commentary)                   | 10s                      |
-| `GET /api/match/:id/commentary?inn&before` | `/api/mcenter/commentary-pagination/:id/:inn/:beforeTimestamp`                   | 60s                      |
-| `GET /api/match/:id/scorecard`             | `/live-cricket-scorecard/:id/x` page, `scoreCard` in the RSC payload             | 15s                      |
-| `GET /api/schedule`                        | India's team schedule page (team 2), `/api/series/schedule`, the IPL series page | 30m (series calendar 6h) |
-| `GET /api/match/:id/squads`                | `/cricket-match-squads/:id/x` page, `team1`/`team2` in the RSC payload           | 60s                      |
+| App route                                  | Cricbuzz source                                                                    | Cache                    |
+| ------------------------------------------ | ---------------------------------------------------------------------------------- | ------------------------ |
+| `GET /api/matches`                         | live, recent and upcoming list pages (RSC payload) and `/api/home`                 | 15s to 5m                |
+| `GET /api/match/:id`                       | `/api/mcenter/comm/:id` (header, miniscore, latest commentary)                     | 10s                      |
+| `GET /api/match/:id/commentary?inn&before` | `/api/mcenter/commentary-pagination/:id/:inn/:beforeTimestamp`                     | 60s                      |
+| `GET /api/match/:id/scorecard`             | `/live-cricket-scorecard/:id/x` page, `scoreCard` in the RSC payload               | 15s                      |
+| `GET /api/schedule`                        | India's team schedule page (team 2), the league schedule page, the IPL series page | 30m (league schedule 6h) |
+| `GET /api/match/:id/squads`                | `/cricket-match-squads/:id/x` page, `team1`/`team2` in the RSC payload             | 60s                      |
 
 | App route                                       | Cricinfo source (ESPN API)                                      | Cache |
 | ----------------------------------------------- | --------------------------------------------------------------- | ----- |

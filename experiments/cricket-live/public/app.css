@@ -644,6 +644,13 @@ main {
   font-weight: 800;
   color: var(--muted);
 }
+/* Crests are square and transparent: fit them whole, no tile behind. */
+.flag.logo {
+  height: 22px;
+  object-fit: contain;
+  background: none;
+  box-shadow: none;
+}
 .flag.lg {
   width: 34px;
   height: 25px;

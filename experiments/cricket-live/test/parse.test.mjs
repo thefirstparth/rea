@@ -203,15 +203,20 @@ test("IPL series page: a full season, title-cased, tagged ipl", () => {
   assert.ok(all.some((m) => m.desc === "Final" && m.phase === "done"));
 });
 
-test("next IPL season: current or upcoming, never a finished one", () => {
-  const cal = json("cb-series-calendar.json");
+test("next IPL season: from the league schedule, never a finished one", () => {
+  const series = cb.leagueSeries(read("cb-series-league.flight.txt"));
+  assert.ok(series.length > 0);
   const at = Date.parse(manifest.capturedAt);
-  const next = cb.iplSeries(cal, at);
-  if (next) {
-    assert.match(next.name, /premier league|ipl/i);
-    assert.ok(next.end >= at);
-    assert.equal(cb.iplSeries(cal, next.end + 1)?.id === next.id, false);
-  }
+  // The league schedule lists the next IPL all year; the streaming-only API did not.
+  const next = cb.iplSeries(series, at);
+  assert.ok(next, "IPL season listed");
+  assert.match(next.name, /premier league|ipl/i);
+  assert.ok(next.end >= at);
+  assert.notEqual(cb.iplSeries(series, next.end + 1)?.id, next.id);
+});
+
+test("league schedule without its series list is a failure, not an empty calendar", () => {
+  assert.throws(() => cb.leagueSeries('"other":[]'), /no series list/);
 });
 
 test("Cricinfo: fixture lookup, match info and live-blog commentary", (t) => {
@@ -262,7 +267,14 @@ test("Cricinfo: fixture lookup, match info and live-blog commentary", (t) => {
 test("Cricinfo IPL scoreboard: season window and latest result", () => {
   const s = ci.iplSeason(json("ci-ipl.json"));
   assert.ok(s.seasonStart && s.seasonEnd && s.seasonStart < s.seasonEnd);
-  for (const m of s.latest) assert.equal(m.sides.length, 2);
+  for (const m of s.latest) {
+    assert.equal(m.sides.length, 2);
+    // The card shows each side's own logo and abbreviation, not initials of its name.
+    for (const x of m.sides) {
+      assert.match(x.short, /^[A-Z]{2,5}$/);
+      assert.match(x.logo, /^https:\/\/.+\.png$/);
+    }
+  }
 });
 
 test("commentary sanitiser keeps b/i/br, unwraps links, escapes the rest", () => {

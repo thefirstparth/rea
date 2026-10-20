@@ -857,6 +857,13 @@ function seriesRow(g) {
   </details>`;
 }
 
+// A Cricinfo team's crest; its abbreviation when Cricinfo has no logo.
+function teamLogo(x) {
+  if (x.logo)
+    return `<img class="flag logo" src="${esc(x.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer">`;
+  return `<span class="flag mono" aria-hidden="true">${esc(x.short ?? "")}</span>`;
+}
+
 // The last IPL result Cricinfo lists, usually the final.
 function iplLatest() {
   const m = S.ipl?.latest?.[0];
@@ -864,12 +871,7 @@ function iplLatest() {
   const rows = m.sides
     .map(
       (x) =>
-        `<div class="side${m.winner && !x.won ? " lose" : ""}"><span class="flag mono" aria-hidden="true">${esc(
-          x.name
-            .split(/\s+/)
-            .map((w) => w[0])
-            .join(""),
-        )}</span><span class="nm">${esc(x.name)}</span><span class="sc" style="font-size:1rem">${esc(x.score.split(" (")[0])}</span></div>${x.score.includes(" (") ? `<div class="dim" style="font-size:var(--t-cap);margin:-2px 0 2px 30px">${esc(x.score.slice(x.score.indexOf(" (") + 1))}</div>` : ""}`,
+        `<div class="side${m.winner && !x.won ? " lose" : ""}">${teamLogo(x)}<span class="nm">${esc(x.name)}</span><span class="sc" style="font-size:1rem">${esc(x.score.split(" (")[0])}</span></div>${x.score.includes(" (") ? `<div class="dim" style="font-size:var(--t-cap);margin:-2px 0 2px 30px">${esc(x.score.slice(x.score.indexOf(" (") + 1))}</div>` : ""}`,
     )
     .join("");
   const line = [
