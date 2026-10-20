@@ -2827,7 +2827,7 @@ function applyTheme() {
   const dark = t === "dark" || (t === "system" && darkQuery.matches);
   if (dark) document.documentElement.dataset.theme = "dark";
   else delete document.documentElement.dataset.theme;
-  $("#themeColor").content = dark ? "#000000" : "#f3f3f5";
+  $("#themeColor").content = dark ? "#0a0c16" : "#f4f1ea";
 }
 darkQuery.addEventListener("change", applyTheme);
 
