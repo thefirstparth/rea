@@ -75,6 +75,20 @@ function valueAfter(text, key, from = 0) {
   return jsonAt(text, at + key.length + 3);
 }
 
+// Pages also embed the site-wide score ticker, so a key like "matchInfo" occurs for
+// many matches. Pick the value that belongs to `id`; absent means not on this page.
+function valueFor(text, key, id) {
+  for (
+    let at = text.indexOf(`"${key}":`);
+    at >= 0;
+    at = text.indexOf(`"${key}":`, at + 1)
+  ) {
+    const v = jsonAt(text, at + key.length + 3);
+    if (v && String(v.matchId) === String(id)) return v;
+  }
+  return undefined;
+}
+
 // ---------- classification
 
 const DONE = /^(complete|abandon|abandoned|no result|cancelled|result)$/i;
@@ -126,10 +140,16 @@ function innings(score) {
     }));
 }
 
+// Series pages write some names in capitals ("ROYAL CHALLENGERS BENGALURU").
+const displayName = (name) =>
+  /[a-z]/.test(name)
+    ? name
+    : name.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+
 function team(t) {
   return {
     id: t?.teamId ?? t?.id ?? null,
-    name: t?.teamName ?? t?.name ?? "",
+    name: displayName(t?.teamName ?? t?.name ?? ""),
     short: t?.teamSName ?? t?.shortName ?? "",
     flag: flagUrl(t?.imageId),
   };
@@ -220,6 +240,97 @@ export async function matches() {
     asOf: Date.now(),
     partial: [live, recent, upcoming].some((r) => r.status === "rejected"),
     matches: all,
+  };
+}
+
+// ---------- schedules
+
+// Team and series pages list fixtures by day:
+// [{ matchDetailsMap: { key: "Thu, 22 Oct 2026", match: [{ matchInfo, matchScore }] } }].
+function fixturesFrom(flight, key) {
+  const days = valueAfter(flight, key);
+  if (!Array.isArray(days)) return [];
+  return days
+    .flatMap((d) => d?.matchDetailsMap?.match ?? [])
+    .map(summary)
+    .filter(Boolean);
+}
+
+// India men (2) and India Women (97): their pages list fixtures about a year ahead,
+// far beyond the upcoming-matches page.
+const INDIA_TEAMS = [2, 97];
+const SCHEDULE_TTL = 30 * 60000;
+
+function teamFixtures(id) {
+  return cached(`team:${id}`, SCHEDULE_TTL, async () =>
+    fixturesFrom(
+      await getFlight(`/cricket-team/x/${id}/schedule`),
+      "teamMatchesData",
+    ),
+  );
+}
+
+function seriesFixtures(id) {
+  return cached(`series:${id}`, SCHEDULE_TTL, async () =>
+    fixturesFrom(
+      await getFlight(`/cricket-series/${id}/x/matches`),
+      "matchDetails",
+    ).filter((m) => m.seriesId === id),
+  );
+}
+
+// The current or next IPL season from Cricbuzz's series calendar. Its dates are
+// Cricbuzz's listing and can precede the official fixture release.
+async function iplSeries() {
+  const cal = await cached("series-calendar", 6 * 3600000, () =>
+    getJson("/api/series/schedule"),
+  );
+  const now = Date.now();
+  return (
+    (cal?.seriesMapProto ?? [])
+      .flatMap((month) => month.series ?? [])
+      .map((x) => ({
+        id: x.id,
+        name: x.name ?? "",
+        start: Number(x.startDt) || null,
+        end: Number(x.endDt) || null,
+      }))
+      .filter((x) => isIpl(x.name) && (x.end ?? Infinity) >= now)
+      .sort((a, b) => (a.start ?? 0) - (b.start ?? 0))[0] ?? null
+  );
+}
+
+export async function schedule() {
+  const [ipl, ...teams] = await Promise.allSettled([
+    iplSeries(),
+    ...INDIA_TEAMS.map(teamFixtures),
+  ]);
+  const results = [ipl, ...teams];
+  if (results.every((r) => r.status === "rejected")) throw teams[0].reason;
+  const series = ipl.status === "fulfilled" ? ipl.value : null;
+  let iplFixtures = [];
+  if (series) {
+    try {
+      iplFixtures = await seriesFixtures(series.id);
+    } catch {
+      // The season card still shows its dates without fixtures.
+    }
+  }
+  const byId = new Map();
+  for (const r of teams)
+    if (r.status === "fulfilled") for (const m of r.value) byId.set(m.id, m);
+  return {
+    asOf: Date.now(),
+    partial: results.some((r) => r.status === "rejected"),
+    india: [...byId.values()]
+      .filter((m) => m.phase !== "done")
+      .sort((a, b) => (a.start ?? 0) - (b.start ?? 0)),
+    ipl: series
+      ? {
+          ...series,
+          fixtures: iplFixtures.sort((a, b) => (a.start ?? 0) - (b.start ?? 0)),
+        }
+      : null,
   };
 }
 
@@ -387,7 +498,12 @@ export async function match(id) {
   const raw = await cached(`comm:${id}`, 10000, () =>
     getJson(`/api/mcenter/comm/${id}`),
   );
-  if (!raw?.matchHeader) throw new UpstreamError("No such match", 404);
+  // Cricbuzz opens a match centre shortly before the start; until then the feed is empty.
+  if (!raw?.matchHeader)
+    throw new UpstreamError(
+      "Cricbuzz hasn't opened this match centre yet",
+      404,
+    );
   const h = header(raw.matchHeader);
   return {
     asOf: Date.now(),
@@ -474,8 +590,10 @@ export async function scorecard(id) {
   const flight = await cached(`scard:${id}`, 15000, () =>
     getFlight(`/live-cricket-scorecard/${id}/x`),
   );
-  const cards = valueAfter(flight, "scoreCard");
-  const info = valueAfter(flight, "matchInfo");
+  const cards = valueAfter(flight, "scoreCard")?.filter?.(
+    (c) => String(c.matchId) === String(id),
+  );
+  const info = valueFor(flight, "matchInfo", id);
   return {
     asOf: Date.now(),
     innings: Array.isArray(cards)

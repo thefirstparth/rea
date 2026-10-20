@@ -718,6 +718,106 @@ main {
   color: var(--live);
 }
 
+/* next match + series ahead */
+.hero.next .rows {
+  margin: 12px 0;
+}
+.when {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.when .cd {
+  font-family: var(--num);
+  font-weight: 700;
+  font-size: 1.9rem;
+  line-height: 1;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.when span:last-child {
+  font-size: var(--t-meta);
+  font-weight: 600;
+  color: var(--ink2);
+}
+.season .meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--t-meta);
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+.season .when .cd {
+  color: var(--ipl);
+}
+details.sr {
+  position: relative;
+}
+.list > details.sr + details.sr::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 14px;
+  right: 0;
+  border-top: 0.5px solid var(--line2);
+}
+details.sr > summary {
+  list-style: none;
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 14px;
+}
+details.sr > summary::-webkit-details-marker {
+  display: none;
+}
+details.sr > summary .nm {
+  font-weight: 650;
+}
+details.sr > summary .sub {
+  font-size: var(--t-meta);
+  color: var(--muted);
+  margin-top: 2px;
+}
+details.sr > summary .nx {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--t-cap);
+  font-weight: 650;
+  color: var(--ink2);
+  white-space: nowrap;
+}
+details.sr .chev {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.3s var(--spring);
+}
+details.sr[open] .chev {
+  transform: rotate(180deg);
+}
+details.sr > .mr::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 14px;
+  border-top: 0.5px solid var(--line2);
+}
+details.sr[open] {
+  background: color-mix(in srgb, var(--sunk) 45%, transparent);
+}
+
 .empty {
   display: grid;
   gap: 4px;

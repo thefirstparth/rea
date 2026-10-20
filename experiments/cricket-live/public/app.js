@@ -18,7 +18,10 @@ const S = {
   squadTeam: new Map(), // id -> 0|1
   ci: new Map(), // id -> Cricinfo info, or { available: false }
   ciComm: new Map(), // id -> { items, olderPage, older, busy, error }
-  ipl: null, // Cricinfo IPL season summary
+  ipl: null, // Cricinfo IPL season summary (last result)
+  sched: null, // { asOf, india: fixtures, ipl: { name, start, end, fixtures } }
+  schedErr: null,
+  openSeries: new Set(), // expanded series ids on list pages
   busy: 0,
 };
 
@@ -261,6 +264,8 @@ async function poll(force) {
   const jobs = [];
   if (r.kind === "list" || !S.list) jobs.push(loadList());
   if (r.kind === "list" && r.tab === "ipl" && !S.ipl) jobs.push(loadIpl());
+  if (r.kind === "list" && r.tab !== "all" && schedStale())
+    jobs.push(loadSched());
   if (r.kind === "match") jobs.push(...matchJobs(r, force));
   await Promise.allSettled(jobs);
   if (!--S.busy) spin.classList.remove("spin");
@@ -278,6 +283,8 @@ function matchJobs({ id, tab }, force) {
     jobs.push(loadCiComm(id));
   if (tab === "scorecard" && fresh(S.card.has(id))) jobs.push(loadCard(id));
   if (tab === "squads" && (force || !S.squad.has(id))) jobs.push(loadSquad(id));
+  // A scheduled match may only be known from the long-range schedule.
+  if (!summaryOf(id) && schedStale()) jobs.push(loadSched());
   // Hero scores fall back to the scorecard when a match is not in the lists.
   if (!S.card.has(id) && S.list && !summaryOf(id)) jobs.push(loadCard(id));
   return jobs;
@@ -360,6 +367,18 @@ async function loadCiOlder(id) {
   }
   c.busy = false;
   render();
+}
+
+// Fixtures a year ahead change rarely; refetch every half hour, not every poll.
+const schedStale = () => !S.sched || Date.now() - S.sched.asOf > 30 * 60000;
+
+async function loadSched() {
+  try {
+    S.sched = await api("/api/schedule");
+    S.schedErr = null;
+  } catch (e) {
+    S.schedErr = e.message;
+  }
 }
 
 async function loadIpl() {
@@ -461,9 +480,16 @@ function statusTrack(m) {
   return `<span>${esc(m.state === "Complete" ? "Result" : m.state)}</span><span>${m.start ? esc(dayLabel(m.start)) : ""}</span>`;
 }
 
-function row(m) {
-  const why = m.phase === "upcoming" ? `${m.desc} · ${m.series}` : m.status;
-  return `<a class="mr" data-k="r${m.id}" href="#m/${m.id}/live">
+// Inside a series group the series name is already shown, so the venue takes its place.
+function row(m, inSeries = false) {
+  const place = m.venue?.city || m.venue?.ground || "";
+  const why =
+    m.phase !== "upcoming"
+      ? m.status
+      : [m.desc, inSeries ? place : m.series].filter(Boolean).join(" · ");
+  // Before the toss there is no commentary yet; open on match info.
+  const tab = m.phase === "upcoming" ? "info" : "live";
+  return `<a class="mr" data-k="r${m.id}" href="#m/${m.id}/${tab}">
     <div class="st">${statusTrack(m)}</div>
     <div class="sides">${side(m, m.t1, m.s1)}${side(m, m.t2, m.s2)}</div>
     <div class="why${m.phase === "live" ? " on" : ""}">${esc(why)}</div>
@@ -519,92 +545,254 @@ const SUBS = {
   ipl: "Indian Premier League",
   all: "Every match in progress",
 };
+const IDLE = {
+  now: "No India or IPL match is live right now.",
+  india: "India aren't playing right now.",
+  ipl: "No IPL match is live right now.",
+};
 
 function listView(tab) {
-  const head = `<div class="ph"><h1>${TITLES[tab]}</h1><p>${SUBS[tab]}</p></div>`;
-  if (!S.list) {
-    if (S.listErr) return head + errorCard(S.listErr);
-    return head + skeleton();
-  }
-  const ms = pick(tab);
-  const live = ms
+  if (tab === "all") return allLiveView();
+  const live = pick(tab)
     .filter((m) => m.phase === "live")
     .sort((a, b) => b.tags.length - a.tags.length || byStartAsc(a, b));
-  const next = ms.filter((m) => m.phase === "upcoming").sort(byStartAsc);
-  const done = ms.filter((m) => m.phase === "done").sort(byStartDesc);
-  let html = head;
+  const title =
+    tab === "now" && S.list && !live.length ? "Up next" : TITLES[tab];
+  const others = pick("all").filter(
+    (m) => m.phase === "live" && !m.tags.length,
+  ).length;
+  const sub =
+    S.list && !live.length
+      ? `${esc(IDLE[tab])}${others ? ` <a href="#all" style="color:var(--accent);font-weight:650">${others} other match${others > 1 ? "es" : ""} live →</a>` : ""}`
+      : esc(SUBS[tab]);
+  let html = `<div class="ph" data-k="ph"><h1>${title}</h1><p>${sub}</p></div>`;
+  if (!S.list) return html + (S.listErr ? errorCard(S.listErr) : skeleton());
+  if (live.length)
+    html += `<div class="sec" data-k="lh"><span>Live</span><small>${live.length} match${live.length > 1 ? "es" : ""}</small></div>${live.map(hero).join("")}`;
+  if (tab !== "ipl") html += indiaAhead(tab, live);
+  if (tab !== "india") html += iplAhead(tab, live);
+  const done = pick(tab)
+    .filter((m) => m.phase === "done")
+    .sort(byStartDesc)
+    .slice(0, tab === "now" ? 3 : 10);
+  if (done.length)
+    html += `<div class="sec" data-k="rh"><span>Results</span></div><div class="list" data-k="rl">${done.map(row).join("")}</div>`;
+  if (tab === "ipl" && !live.length && !upcoming("ipl").length)
+    html += iplLatest();
+  const err = S.listErr || S.schedErr;
+  return html + foot(S.list.asOf, err, tab === "ipl" && !!S.ipl);
+}
 
-  if (tab === "all") {
-    if (!live.length)
-      html += empty(
-        "Nothing is live right now",
-        "Check back when play starts.",
-      );
-    const groups = new Map();
-    for (const m of live) {
-      if (!groups.has(m.series)) groups.set(m.series, []);
-      groups.get(m.series).push(m);
-    }
-    const ordered = [...groups.entries()].sort(
-      (a, b) =>
-        b[1].some((m) => m.tags.length) - a[1].some((m) => m.tags.length),
-    );
-    for (const [series, list] of ordered)
-      html += `<div class="sec"><span>${esc(series)}</span></div><div class="list">${list.map(row).join("")}</div>`;
-    return html + foot();
+function allLiveView() {
+  let html = `<div class="ph" data-k="ph"><h1>${TITLES.all}</h1><p>${SUBS.all}</p></div>`;
+  if (!S.list) return html + (S.listErr ? errorCard(S.listErr) : skeleton());
+  const live = pick("all").filter((m) => m.phase === "live");
+  if (!live.length)
+    html += empty("Nothing is live right now", "Check back when play starts.");
+  const groups = new Map();
+  for (const m of live) {
+    if (!groups.has(m.series)) groups.set(m.series, []);
+    groups.get(m.series).push(m);
   }
+  const ordered = [...groups.entries()].sort(
+    (a, b) => b[1].some((m) => m.tags.length) - a[1].some((m) => m.tags.length),
+  );
+  for (const [series, list] of ordered)
+    html += `<div class="sec"><span>${esc(series)}</span></div><div class="list">${list.map(row).join("")}</div>`;
+  return html + foot();
+}
 
-  if (live.length) {
-    html += `<div class="sec"><span>Live</span><small>${live.length} match${live.length > 1 ? "es" : ""}</small></div>`;
-    html += live.map(hero).join("");
-  } else {
-    const n = pick("all").filter((m) => m.phase === "live").length;
-    const what =
-      tab === "ipl"
-        ? "No IPL match is live"
-        : tab === "india"
-          ? "India aren't playing right now"
-          : "Nothing live for India or the IPL";
-    let why = next[0]?.start
-      ? esc(
-          `Next up ${dayLabel(next[0].start).toLowerCase()} at ${timeFmt.format(next[0].start)}: ${next[0].t1.short} v ${next[0].t2.short}.`,
+// Upcoming fixtures for a tag: the near-term live feed plus the long-range schedule.
+function upcoming(tag) {
+  const fromSched =
+    tag === "ipl" ? (S.sched?.ipl?.fixtures ?? []) : (S.sched?.india ?? []);
+  const byId = new Map();
+  for (const m of [...pick(tag), ...fromSched])
+    if (m.phase === "upcoming" && m.tags.includes(tag) && !byId.has(m.id))
+      byId.set(m.id, m);
+  return [...byId.values()].sort(byStartAsc);
+}
+
+// "India" and "India Women" are the senior sides; each gets its own next-match card.
+const SIDES = ["India", "India Women"];
+const sideOf = (m) =>
+  [m.t1.name, m.t2.name].find((n) => /^India(\s|$)/.test(n)) ?? "India";
+
+function indiaAhead(tab, live) {
+  const fixtures = upcoming("india");
+  if (!fixtures.length) {
+    if (!S.sched && !S.schedErr) return skeleton(1);
+    return live.some((m) => m.tags.includes("india"))
+      ? ""
+      : empty(
+          "No India fixtures listed",
+          "Cricbuzz hasn't published India's next matches yet.",
+        );
+  }
+  let html = "";
+  const playing = new Set(
+    live.filter((m) => m.tags.includes("india")).map(sideOf),
+  );
+  const next = SIDES.filter((side) => !playing.has(side))
+    .map((side) => fixtures.find((m) => sideOf(m) === side))
+    .filter(Boolean)
+    .sort(byStartAsc);
+  if (next.length)
+    html += `<div class="sec" data-k="nh"><span>Next match${next.length > 1 ? "es" : ""}</span></div>${next.map(nextCard).join("")}`;
+  const series = groupSeries(fixtures).slice(0, tab === "now" ? 3 : 12);
+  html += `<div class="sec" data-k="sh"><span>Series ahead</span><small>India</small></div><div class="list" data-k="sl">${series.map(seriesRow).join("")}</div>`;
+  return html;
+}
+
+function iplAhead(tab, live) {
+  if (live.some((m) => m.tags.includes("ipl"))) {
+    const next = upcoming("ipl").slice(0, tab === "ipl" ? 10 : 3);
+    return next.length
+      ? `<div class="sec" data-k="ih"><span>IPL up next</span></div><div class="list" data-k="il">${next.map(row).join("")}</div>`
+      : "";
+  }
+  const fixtures = upcoming("ipl");
+  if (fixtures.length) {
+    let html = `<div class="sec" data-k="ih"><span>Next IPL match</span></div>${nextCard(fixtures[0])}`;
+    if (tab === "ipl")
+      html += `<div class="sec" data-k="if"><span>Fixtures</span><small>${fixtures.length} to play</small></div><div class="list" data-k="il">${fixtures.slice(1).map(row).join("")}</div>`;
+    return html;
+  }
+  return seasonCard(tab);
+}
+
+// Off-season: the next IPL season as Cricbuzz lists it, before fixtures exist.
+function seasonCard(tab) {
+  const season = S.sched?.ipl;
+  if (!season) {
+    if (!S.sched && !S.schedErr) return tab === "ipl" ? skeleton(1) : "";
+    return tab === "ipl"
+      ? empty(
+          "No IPL season listed",
+          "The next season appears here once Cricbuzz lists it.",
         )
       : "";
-    if (tab === "ipl" && !ms.length) why = iplOffSeason();
-    html += empty(
-      what,
-      `${why}${n ? ` <a href="#all" style="color:var(--accent);font-weight:650">${n} other match${n > 1 ? "es" : ""} live →</a>` : ""}`,
-      true,
-    );
-    if (tab === "ipl" && !ms.length) html += iplLatest();
   }
-  const cap = tab === "now" ? 4 : 12;
-  if (next.length)
-    html += `<div class="sec"><span>Up next</span></div><div class="list">${next.slice(0, cap).map(row).join("")}</div>`;
-  if (done.length)
-    html += `<div class="sec"><span>Results</span></div><div class="list">${done.slice(0, cap).map(row).join("")}</div>`;
-  return html + foot(S.list?.asOf, S.listErr, tab === "ipl" && !!S.ipl);
+  const starts = season.start && season.start > Date.now();
+  return `<div class="sec" data-k="ih"><span>IPL</span></div>
+    <div class="card season" data-k="season">
+      <div class="meta"><span class="tag ipl">IPL</span><span>${esc(season.name)}</span></div>
+      ${starts ? `<div class="when"><span class="cd">${esc(countdown(season.start, false))}</span><span>to go</span></div>` : ""}
+      <div class="kv" style="border:0;padding:8px 0 0"><span class="lbl">Season window</span>${esc(dateRange(season.start, season.end))} <span class="dim">(as listed by Cricbuzz)</span></div>
+      <div class="kv" style="border:0;padding:8px 0 0"><span class="lbl">Fixtures</span>Not announced yet. They appear here as soon as Cricbuzz publishes them.</div>
+    </div>`;
 }
+
+// "in 2d 4h"; with prefix false, "2d 4h" for use before "to go".
+function countdown(ts, prefix = true) {
+  const mins = Math.round((ts - Date.now()) / 60000);
+  if (mins <= 0) return "Starting";
+  const h = Math.floor(mins / 60);
+  const d = Math.floor(h / 24);
+  const span =
+    mins < 60
+      ? `${mins} min`
+      : h < 24
+        ? `${h}h ${mins % 60}m`
+        : d < 7
+          ? `${d}d ${h % 24}h`
+          : `${d} days`;
+  return prefix ? `in ${span}` : span;
+}
+
+// "3rd T20I" already names its format; "Group C" does not.
+const matchLabel = (m) => {
+  const f = FORMAT_LABEL[m.format] ?? m.format;
+  return f && !new RegExp(`\\b${f}`, "i").test(m.desc)
+    ? `${f} · ${m.desc}`
+    : m.desc;
+};
 
 const shortDate = new Intl.DateTimeFormat(undefined, {
   day: "numeric",
   month: "short",
 });
+const yearDate = new Intl.DateTimeFormat(undefined, {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
 
-function iplOffSeason() {
-  const ipl = S.ipl;
-  if (!ipl?.seasonStart)
-    return "No IPL fixtures appear in the current feeds. The season usually runs March to May.";
-  const year = new Date(ipl.seasonStart).getFullYear();
-  return esc(
-    `IPL ${year} ran ${shortDate.format(ipl.seasonStart)} to ${shortDate.format(ipl.seasonEnd)}. Fixtures for the next season appear here once they're scheduled.`,
+// "Oct 22 – Nov 26"; the year appears once, at the end, when it isn't this year.
+function dateRange(a, b = a) {
+  if (!a) return "";
+  const year = new Date(b).getFullYear();
+  const end = (year === new Date().getFullYear() ? shortDate : yearDate).format(
+    b,
   );
+  if (shortDate.format(a) === shortDate.format(b)) return end;
+  const start = (
+    new Date(a).getFullYear() === year ? shortDate : yearDate
+  ).format(a);
+  return `${start} – ${end}`;
+}
+
+function nextCard(m) {
+  const tag = m.tags.includes("ipl")
+    ? '<span class="tag ipl">IPL</span>'
+    : `<span class="tag india">${esc(sideOf(m))}</span>`;
+  const where = m.venue
+    ? [m.venue.ground, m.venue.city].filter(Boolean).join(", ")
+    : "";
+  const when = m.start ? `${dayLabel(m.start)} ${timeFmt.format(m.start)}` : "";
+  return `<a class="hero next" data-k="n${m.id}" href="#m/${m.id}/info">
+    <div class="meta">${tag}<span>${esc(matchLabel(m))}</span></div>
+    <div class="rows">${hrow(m, m.t1, [])}${hrow(m, m.t2, [])}</div>
+    <div class="when">${m.start ? `<span class="cd">${esc(countdown(m.start))}</span>` : ""}<span>${esc([when, where].filter(Boolean).join(" · "))}</span></div>
+    <div class="dim" style="font-size:var(--t-cap);margin-top:4px">${esc(m.series)}</div>
+  </a>`;
+}
+
+// Group fixtures by series, in order of each series' next fixture.
+function groupSeries(fixtures) {
+  const groups = new Map();
+  for (const m of fixtures) {
+    const k = m.seriesId ?? m.series;
+    if (!groups.has(k))
+      groups.set(k, { id: String(k), name: m.series, fixtures: [] });
+    groups.get(k).fixtures.push(m);
+  }
+  return [...groups.values()];
+}
+
+const FORMAT_LABEL = { T20: "T20I", ODI: "ODI", TEST: "Test" };
+const BILATERAL = /^(\d+(st|nd|rd|th)|One-off) (T20I|ODI|Test)$/;
+
+// "5 T20Is · 5 ODIs · 2 Tests" for a bilateral series, "5 matches" for a tournament.
+function composition(fixtures) {
+  const n = fixtures.length;
+  if (!fixtures.every((m) => BILATERAL.test(m.desc)))
+    return `${n} match${n > 1 ? "es" : ""}`;
+  const counts = new Map();
+  for (const m of fixtures) {
+    const f = FORMAT_LABEL[m.format] ?? m.format;
+    counts.set(f, (counts.get(f) ?? 0) + 1);
+  }
+  return [...counts]
+    .map(([f, c]) => `${c} ${f}${c > 1 ? "s" : ""}`)
+    .join(" · ");
+}
+
+function seriesRow(g) {
+  const first = g.fixtures[0];
+  const last = g.fixtures.at(-1);
+  const open = S.openSeries.has(g.id);
+  return `<details class="sr" data-k="sr${esc(g.id)}" data-series="${esc(g.id)}"${open ? " open" : ""}>
+    <summary><div><div class="nm">${esc(g.name)}</div><div class="sub">${esc(dateRange(first.start, last.start))} · ${esc(composition(g.fixtures))} to play</div></div>
+      <div class="nx">${first.start ? esc(dayLabel(first.start)) : ""}<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></div></summary>
+    ${g.fixtures.map((m) => row(m, true)).join("")}
+  </details>`;
 }
 
 // The last IPL result Cricinfo lists, usually the final.
 function iplLatest() {
   const m = S.ipl?.latest?.[0];
-  if (!m) return "";
+  if (!m || m.state !== "Result") return "";
   const rows = m.sides
     .map(
       (x) =>
@@ -613,7 +801,7 @@ function iplLatest() {
             .split(/\s+/)
             .map((w) => w[0])
             .join(""),
-        )}</span><span class="nm">${esc(x.name)}</span><span class="sc" style="font-size:1rem">${esc(x.score)}</span></div>`,
+        )}</span><span class="nm">${esc(x.name)}</span><span class="sc" style="font-size:1rem">${esc(x.score.split(" (")[0])}</span></div>${x.score.includes(" (") ? `<div class="dim" style="font-size:var(--t-cap);margin:-2px 0 2px 30px">${esc(x.score.slice(x.score.indexOf(" (") + 1))}</div>` : ""}`,
     )
     .join("");
   const line = [
@@ -622,7 +810,7 @@ function iplLatest() {
   ]
     .filter(Boolean)
     .join(" · ");
-  return `<div class="sec" data-k="iplh"><span>Last result</span><small>${m.date ? esc(dayFmt.format(m.date)) : ""}</small></div>
+  return `<div class="sec" data-k="iplh"><span>Last season</span><small>${m.date ? esc(dayFmt.format(m.date)) : ""}</small></div>
     <div class="card" data-k="ipll"><div class="dim" style="font-size:var(--t-meta);margin-bottom:8px">${esc(m.name)}</div><div class="sides">${rows}</div>
     <div style="font-size:var(--t-meta);font-weight:650;margin-top:10px">${esc(line)}</div>
     ${m.link ? `<a class="more" style="padding:12px 0 0;margin-top:10px" href="${esc(m.link)}" target="_blank" rel="noopener noreferrer">Scorecard on ESPNcricinfo →</a>` : ""}</div>`;
@@ -644,8 +832,14 @@ function foot(asOf = S.list?.asOf, err = S.listErr, cricinfo = false) {
 
 // ---------- match view
 
+// A fixture from the live feed or, further ahead, from the schedule.
 function summaryOf(id) {
-  return S.list?.matches.find((m) => String(m.id) === String(id)) ?? null;
+  const all = [
+    ...(S.list?.matches ?? []),
+    ...(S.sched?.india ?? []),
+    ...(S.sched?.ipl?.fixtures ?? []),
+  ];
+  return all.find((m) => String(m.id) === String(id)) ?? null;
 }
 
 // Innings per team: live miniscore first, then the list feed, then the scorecard.
@@ -666,7 +860,11 @@ function matchView(r) {
   const id = r.id;
   const d = S.match.get(id);
   const err = S.matchErr.get(id);
-  if (!d) return err ? errorCard(err) : skeleton(1) + skeleton();
+  if (!d) {
+    const fixture = summaryOf(id);
+    if (err && fixture) return previewView(r, fixture);
+    return err ? errorCard(err) : skeleton(1) + skeleton();
+  }
   const h = d.header;
   const sm = summaryOf(id);
   const t1 = { ...h.t1, flag: sm?.t1.flag };
@@ -702,25 +900,76 @@ function matchView(r) {
     <div class="status">${esc(h.status || (h.start ? `Starts ${dayLabel(h.start)} ${timeFmt.format(h.start)}` : ""))}</div>
     ${eq.length ? `<div class="eq">${eq.join("")}</div>` : ""}
   </section>`;
-  const tabs = [
-    ["live", live ? "Live" : "Commentary"],
-    ["scorecard", "Scorecard"],
-    ["squads", "Squads"],
-    ["info", "Info"],
-  ];
-  const ti = MATCH_TABS.indexOf(r.tab);
-  const seg = `<nav class="seg" data-k="seg" style="--n:4;--i:${ti}" aria-label="Match sections"><i class="thumb" aria-hidden="true"></i>${tabs
-    .map(
-      ([k, label]) =>
-        `<a href="#m/${id}/${k}" aria-current="${k === r.tab}">${label}</a>`,
-    )
-    .join("")}</nav>`;
+  const seg = matchTabs(id, r.tab, live);
   let body = "";
   if (r.tab === "live") body = liveTab(id, d);
   else if (r.tab === "scorecard") body = scorecardTab(id, h);
   else if (r.tab === "squads") body = squadsTab(id);
   else body = infoTab(id, d);
   return `${heroHtml}${seg}<div data-k="body-${r.tab}">${body}</div>${foot(d.asOf, err, !!S.ci.get(id)?.available)}`;
+}
+
+function matchTabs(id, tab, live) {
+  const tabs = [
+    ["live", live ? "Live" : "Commentary"],
+    ["scorecard", "Scorecard"],
+    ["squads", "Squads"],
+    ["info", "Info"],
+  ];
+  const ti = MATCH_TABS.indexOf(tab);
+  return `<nav class="seg" data-k="seg" style="--n:4;--i:${ti}" aria-label="Match sections"><i class="thumb" aria-hidden="true"></i>${tabs
+    .map(
+      ([k, label]) =>
+        `<a href="#m/${id}/${k}" aria-current="${k === tab}">${label}</a>`,
+    )
+    .join("")}</nav>`;
+}
+
+const istFmt = new Intl.DateTimeFormat("en-IN", {
+  timeZone: "Asia/Kolkata",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+// Before Cricbuzz opens the match centre, show what the fixture list knows.
+// The page fills in on its own once the match centre opens (the poll keeps trying).
+function previewView(r, m) {
+  const where = m.venue
+    ? [m.venue.ground, m.venue.city].filter(Boolean).join(", ")
+    : "";
+  const hero = `<section class="mhero" data-k="mh">
+    <div class="series">${tags(m)}<span>${esc(m.series)}</span></div>
+    <h1>${esc(m.t1.short)} v ${esc(m.t2.short)} · ${esc(m.desc)}</h1>
+    <div class="rows">${hrow(m, m.t1, [])}${hrow(m, m.t2, [])}</div>
+    ${m.start ? `<div class="when"><span class="cd">${esc(countdown(m.start))}</span><span>${esc(`${dayLabel(m.start)} ${timeFmt.format(m.start)}`)}</span></div>` : ""}
+  </section>`;
+  const start = m.start ? `starts ${countdown(m.start)}` : "hasn't started";
+  let body;
+  if (r.tab === "squads") body = squadsTab(r.id);
+  else if (r.tab === "info")
+    body = `<div class="card flush" data-k="info">${[
+      ["Series", m.series],
+      ["Match", matchLabel(m)],
+      [
+        "Starts",
+        m.start
+          ? `${fullFmt.format(m.start)} (${istFmt.format(m.start)} IST)`
+          : "",
+      ],
+      ["Venue", where],
+    ]
+      .filter(([, v]) => v)
+      .map(
+        ([k, v]) =>
+          `<div class="kv" style="border-top:0"><span class="lbl">${esc(k)}</span>${esc(v)}</div>`,
+      )
+      .join("")}</div>`;
+  else
+    body = empty(
+      "Not started yet",
+      `This match ${start}. Commentary and the scorecard begin with the toss; squads appear once they're named.`,
+    );
+  return `${hero}${matchTabs(r.id, r.tab, false)}<div data-k="body-${r.tab}">${body}</div>`;
 }
 
 function ballChip(t) {
@@ -1012,10 +1261,11 @@ function render() {
   }
   $("#back").hidden = r.kind !== "match";
   const d = r.kind === "match" ? S.match.get(r.id) : null;
+  const teams = d?.header ?? (r.kind === "match" ? summaryOf(r.id) : null);
   const title =
     r.kind === "match"
-      ? d
-        ? `${d.header.t1.short} v ${d.header.t2.short}`
+      ? teams
+        ? `${teams.t1.short} v ${teams.t2.short}`
         : "Match"
       : TITLES[r.tab];
   $("#topTitle").textContent = title;
@@ -1082,14 +1332,19 @@ view.addEventListener("click", (e) => {
   }
 });
 
-// Remember which innings are expanded so live re-renders keep them.
+// Remember which innings and series are expanded so live re-renders keep them.
 view.addEventListener(
   "toggle",
   (e) => {
     const el = e.target;
-    if (!(el instanceof HTMLDetailsElement) || !el.dataset.inn) return;
+    if (!(el instanceof HTMLDetailsElement)) return;
+    if (el.dataset.series) {
+      if (el.open) S.openSeries.add(el.dataset.series);
+      else S.openSeries.delete(el.dataset.series);
+      return;
+    }
     const r = route();
-    if (r.kind !== "match") return;
+    if (!el.dataset.inn || r.kind !== "match") return;
     const set = S.open.get(r.id) ?? new Set();
     const n = Number(el.dataset.inn);
     if (el.open) set.add(n);

@@ -6,6 +6,7 @@ import {
   match,
   matches,
   olderCommentary,
+  schedule,
   scorecard,
   squads,
 } from "./cricbuzz.mjs";
@@ -60,6 +61,7 @@ function resolve(pathname, query) {
   if (root !== "api" || extra.length) return null;
   if (kind === "matches" && !id) return { ttl: 10, load: matches };
   if (kind === "ipl" && !id) return { ttl: 3600, load: cricinfo.iplSeason };
+  if (kind === "schedule" && !id) return { ttl: 600, load: schedule };
   if (kind !== "match" || !ID.test(id ?? "")) return null;
   if (!sub) return { ttl: 10, load: () => match(id) };
   if (rest && sub !== "cricinfo") return null;
