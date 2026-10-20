@@ -51,14 +51,14 @@ its source's formats and normalises into the shapes the client reads. The
 server composes them: Cricbuzz match ids drive every route, and the Cricinfo
 event is found from the same fixture.
 
-| App route                                  | Cricbuzz source                                                                               | Cache                    |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------- | ------------------------ |
-| `GET /api/matches`                         | live, recent and upcoming list pages (RSC payload) and `/api/home`                            | 15s to 5m                |
-| `GET /api/match/:id`                       | `/api/mcenter/comm/:id` (header, miniscore, latest commentary)                                | 10s                      |
-| `GET /api/match/:id/commentary?inn&before` | `/api/mcenter/commentary-pagination/:id/:inn/:beforeTimestamp`                                | 60s                      |
-| `GET /api/match/:id/scorecard`             | `/live-cricket-scorecard/:id/x` page, `scoreCard` in the RSC payload                          | 15s                      |
-| `GET /api/schedule`                        | India men (team 2) and women (97) schedule pages, `/api/series/schedule`, the IPL series page | 30m (series calendar 6h) |
-| `GET /api/match/:id/squads`                | `/cricket-match-squads/:id/x` page, `team1`/`team2` in the RSC payload                        | 60s                      |
+| App route                                  | Cricbuzz source                                                                  | Cache                    |
+| ------------------------------------------ | -------------------------------------------------------------------------------- | ------------------------ |
+| `GET /api/matches`                         | live, recent and upcoming list pages (RSC payload) and `/api/home`               | 15s to 5m                |
+| `GET /api/match/:id`                       | `/api/mcenter/comm/:id` (header, miniscore, latest commentary)                   | 10s                      |
+| `GET /api/match/:id/commentary?inn&before` | `/api/mcenter/commentary-pagination/:id/:inn/:beforeTimestamp`                   | 60s                      |
+| `GET /api/match/:id/scorecard`             | `/live-cricket-scorecard/:id/x` page, `scoreCard` in the RSC payload             | 15s                      |
+| `GET /api/schedule`                        | India's team schedule page (team 2), `/api/series/schedule`, the IPL series page | 30m (series calendar 6h) |
+| `GET /api/match/:id/squads`                | `/cricket-match-squads/:id/x` page, `team1`/`team2` in the RSC payload           | 60s                      |
 
 | App route                                       | Cricinfo source (ESPN API)                                      | Cache |
 | ----------------------------------------------- | --------------------------------------------------------------- | ----- |
@@ -94,7 +94,7 @@ when the newest is nearly empty). Each ball's `preText` and `postText` live-blog
 entries are placed around it.
 
 The live-scores pages only look a few days ahead, so the schedule comes from
-each India team's schedule page (`/cricket-team/x/{id}/schedule`, about a year of
+India's team schedule page (`/cricket-team/x/2/schedule`, about a year of
 fixtures) and the next IPL season from Cricbuzz's series calendar. That
 calendar lists a season's window before fixtures exist (IPL 2027: 10 Mar – 15 May
 2027). The app shows it as Cricbuzz's listing, not an official date. Once
@@ -105,7 +105,10 @@ opens it.
 
 Classification:
 
-- **India**: either team's name starts with `India` (India, India Women, India A, India U19).
+- **Men's cricket only**: Cricbuzz has no gender field, so any match whose team
+  or series name says "Women" (India Women, Women's Premier League) is dropped
+  where matches are first parsed. Their match pages are refused as well.
+- **India**: either team's name starts with `India` (India, India A, India U19).
 - **IPL**: the series name matches `Indian Premier League` or `IPL`.
 - **Phase**: `Preview` and `Upcoming` are upcoming. `Complete`, `Abandon` and
   `No result` are done. Everything else is live. Stumps, lunch, tea, rain and
@@ -113,7 +116,7 @@ Classification:
 
 ## Front end
 
-- With nothing live, the home page leads with each senior India side's next
+- With nothing live, the home page leads with India's next
   match (countdown, local time, venue) and then a **Series ahead** list that
   expands to show its fixtures. The IPL section shows the next IPL match, or
   out of season the next season's window and last season's final.

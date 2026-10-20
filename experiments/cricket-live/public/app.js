@@ -541,7 +541,7 @@ function skeleton(n = 2) {
 const TITLES = { now: "Live now", india: "India", ipl: "IPL", all: "All live" };
 const SUBS = {
   now: "India and IPL, ball by ball",
-  india: "Men's, women's and age-group India sides",
+  india: "India men, plus A and U19 sides",
   ipl: "Indian Premier League",
   all: "Every match in progress",
 };
@@ -613,8 +613,7 @@ function upcoming(tag) {
   return [...byId.values()].sort(byStartAsc);
 }
 
-// "India" and "India Women" are the senior sides; each gets its own next-match card.
-const SIDES = ["India", "India Women"];
+// The India side in a fixture ("India", "India A"), for its tag.
 const sideOf = (m) =>
   [m.t1.name, m.t2.name].find((n) => /^India(\s|$)/.test(n)) ?? "India";
 
@@ -630,15 +629,9 @@ function indiaAhead(tab, live) {
         );
   }
   let html = "";
-  const playing = new Set(
-    live.filter((m) => m.tags.includes("india")).map(sideOf),
-  );
-  const next = SIDES.filter((side) => !playing.has(side))
-    .map((side) => fixtures.find((m) => sideOf(m) === side))
-    .filter(Boolean)
-    .sort(byStartAsc);
-  if (next.length)
-    html += `<div class="sec" data-k="nh"><span>Next match${next.length > 1 ? "es" : ""}</span></div>${next.map(nextCard).join("")}`;
+  // While India play, the live card leads; otherwise their next fixture does.
+  if (!live.some((m) => m.tags.includes("india")))
+    html += `<div class="sec" data-k="nh"><span>Next match</span></div>${nextCard(fixtures[0])}`;
   const series = groupSeries(fixtures).slice(0, tab === "now" ? 3 : 12);
   html += `<div class="sec" data-k="sh"><span>Series ahead</span><small>India</small></div><div class="list" data-k="sl">${series.map(seriesRow).join("")}</div>`;
   return html;
