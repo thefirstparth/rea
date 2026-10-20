@@ -11,7 +11,7 @@
       name="description"
       content="Live scores, ball-by-ball commentary, scorecards and squads for India and the IPL."
     />
-    <meta name="theme-color" content="#f3f3f5" id="themeColor" />
+    <meta name="theme-color" content="#f4f1ea" id="themeColor" />
     <script>
       // "light" or "dark" when chosen in Settings; otherwise (or with storage blocked)
       // the device's setting.
@@ -24,16 +24,16 @@
         (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches)
       ) {
         document.documentElement.dataset.theme = "dark";
-        document.getElementById("themeColor").content = "#000000";
+        document.getElementById("themeColor").content = "#0a0c16";
       }
     </script>
     <style>
       /* The page colour before the stylesheet arrives: no white flash on a slow line. */
       html {
-        background: #f3f3f5;
+        background: #f4f1ea;
       }
       html[data-theme="dark"] {
-        background: #000;
+        background: #0a0c16;
       }
     </style>
     <meta name="apple-mobile-web-app-capable" content="yes" />

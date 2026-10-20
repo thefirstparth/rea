@@ -3,14 +3,15 @@
    Content flat and opaque; glass only on floating chrome. Numerals are the hero type (Barlow Condensed).
    Every match row is one grid so scores and dividers line up. */
 :root {
-  --bg: #f3f3f5;
-  --surface: #fff;
-  --sunk: #eef0f6;
-  --ink: #0e1330;
-  --ink2: #2f3654;
-  --muted: #4a5170;
-  --line2: rgba(14, 19, 48, 0.1);
-  --line: rgba(14, 19, 48, 0.2);
+  /* Light: warm paper and ink type; cards sit on the page rather than float. */
+  --bg: #f4f1ea;
+  --surface: #fffdf9;
+  --sunk: #f0ebe1;
+  --ink: #14172b;
+  --ink2: #33384f;
+  --muted: #575b6f;
+  --line2: rgba(20, 23, 43, 0.09);
+  --line: rgba(20, 23, 43, 0.18);
   --live: #dc2a1f;
   --win: #147a40;
   --accent: #2442e8;
@@ -24,7 +25,7 @@
   /* Freshness warnings on their own light tints. */
   --warn-ink: #7a4d00;
   --bad-ink: #a8201a;
-  --glass: color-mix(in oklab, var(--surface) 92%, transparent);
+  --glass: color-mix(in oklab, var(--surface) 88%, transparent);
   --glass-edge: rgba(0, 0, 0, 0.12);
   --glass-rim: rgba(255, 255, 255, 0.7);
   /* Stickers: a cobalt card for the score, tangerine labels for state, a die-cut edge. */
@@ -36,8 +37,12 @@
   --chip-four: #2442e8;
   --chip-six: #7a2fc0;
   --chip-wkt: #c22a23;
-  --lift: 0 14px 30px rgba(14, 19, 48, 0.14);
-  --scene-mix: 20%;
+  --lift: 0 1px 0 rgba(20, 23, 43, 0.05), 0 12px 28px rgba(20, 23, 43, 0.1);
+  /* The edge of a card or list on the page. */
+  --edge: 0 0 0 0.5px var(--line2), 0 1px 2px rgba(20, 23, 43, 0.05);
+  --scene-mix: 16%;
+  /* A faint paper grain under the page tint, one SVG noise tile. */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .055 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   --sans:
     "Bricolage Grotesque", -apple-system, BlinkMacSystemFont, "SF Pro Text",
     "Segoe UI Variable", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -127,16 +132,18 @@
   );
   color-scheme: light;
 }
+/* Dark: a night-stadium navy rather than black, cards lit from above, a die-cut edge
+   you can see, and the team colour glowing at the top. */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #000;
-  --surface: #141416;
-  --sunk: #222225;
-  --ink: #f4f4f6;
-  --ink2: #cfcfd5;
-  --muted: #9b9ba3;
-  --line2: rgba(255, 255, 255, 0.14);
-  --line: rgba(255, 255, 255, 0.26);
+  --bg: #0a0c16;
+  --surface: #131729;
+  --sunk: #1c2136;
+  --ink: #f2f3f8;
+  --ink2: #c9cddd;
+  --muted: #959bb5;
+  --line2: rgba(255, 255, 255, 0.08);
+  --line: rgba(255, 255, 255, 0.18);
   --live: #ff5248;
   --win: #4bd389;
   --accent: #8fa2ff;
@@ -148,12 +155,12 @@
   --extra-ink: #e8c15a;
   --warn-ink: #f5c25a;
   --bad-ink: #ff7169;
-  --glass: color-mix(in oklab, #1c1c1f 94%, transparent);
+  --glass: color-mix(in oklab, #151a2e 90%, transparent);
   --glass-edge: rgba(255, 255, 255, 0.12);
   --glass-rim: rgba(255, 255, 255, 0.1);
-  --die: #262a3a;
-  --lift: 0 14px 30px rgba(0, 0, 0, 0.5);
-  --scene-mix: 26%;
+  --die: #39406a;
+  --lift: 0 14px 34px rgba(0, 0, 0, 0.55);
+  --edge: 0 0 0 0.5px var(--line2), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 * {
   box-sizing: border-box;
@@ -168,6 +175,7 @@ body {
   margin: 0;
   /* --scene is the match's team colour, set per view; without one the page stays plain. */
   background:
+    var(--grain),
     linear-gradient(
         180deg,
         color-mix(in oklab, var(--scene, var(--bg)) var(--scene-mix), var(--bg))
@@ -181,6 +189,17 @@ body {
   font-size: var(--t-body);
   line-height: 1.38;
   -webkit-font-smoothing: antialiased;
+}
+/* Dark: the team colour (cobalt without one) glows from the top; no grain. */
+:root[data-theme="dark"] body {
+  background:
+    radial-gradient(
+        120% 60% at 50% -10%,
+        color-mix(in oklab, var(--scene, var(--cobalt)) 45%, transparent),
+        transparent 70%
+      )
+      no-repeat,
+    var(--bg);
 }
 button {
   font: inherit;
@@ -560,7 +579,7 @@ main {
 
 /* ---------- page headings */
 .ph {
-  padding: 6px 2px 14px;
+  padding: 6px 2px 6px;
 }
 .ph h1 {
   margin: 0;
@@ -588,6 +607,17 @@ main {
 }
 .sec:first-child {
   margin-top: 4px;
+}
+/* Under a page heading: room for a card's sticker, and no more. */
+.ph + .sec {
+  margin-top: 12px;
+}
+.ph + .card,
+.ph + .list {
+  margin-top: 10px;
+}
+.ph + .hero {
+  margin-top: 22px;
 }
 .sec small {
   font-weight: 600;
@@ -651,7 +681,7 @@ main {
 .card {
   background: var(--surface);
   border-radius: var(--r);
-  box-shadow: 0 0 0 0.5px var(--line2);
+  box-shadow: var(--edge);
 }
 .list {
   overflow: hidden;
@@ -978,7 +1008,8 @@ main {
   color: var(--muted);
 }
 /* The link keeps a 44px tap area without adding height: padding, offset by margin. */
-.idle .link {
+.idle .link,
+.ph p .link {
   display: inline-block;
   min-height: 0;
   padding: 13px 0;

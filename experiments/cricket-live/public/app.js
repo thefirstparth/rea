@@ -1286,8 +1286,8 @@ function indiaView() {
   if (!S.list) return html + (S.listErr ? errorCard(S.listErr) : skeleton());
   html += liveSection(live);
   const fixtures = upcoming("india");
-  if (!live.length && fixtures.length)
-    html += `<div class="sec" data-k="nh"><span>Next match</span></div>${nextCard(fixtures[0])}`;
+  // First under the heading, the card says what it is: no section label.
+  if (!live.length && fixtures.length) html += nextCard(fixtures[0]);
   html += indiaResultsSection();
   if (fixtures.length)
     html += `<div class="sec" data-k="sh"><span>Series ahead</span></div><div class="list" data-k="sl">${groupSeries(fixtures).slice(0, 12).map(seriesRow).join("")}</div>`;
@@ -1325,8 +1325,7 @@ function tournamentView() {
   const fresh = new Map(pick("wc").map((m) => [String(m.id), m]));
   const all = ev.fixtures.map((m) => fresh.get(String(m.id)) ?? m);
   if (ev.start > now)
-    html += `<div class="sec" data-k="ih"><span>Starts</span></div>
-      <div class="card season" data-k="season">
+    html += `<div class="card season" data-k="season">
         <div class="meta"><span class="tag">ICC</span><span>${esc(ev.name)}</span></div>
         <div class="when"><span class="cd">${esc(countdown(ev.start, false))}</span><span>to go</span></div>
         <div class="kv" style="border:0;padding:8px 0 0"><span class="lbl">Dates</span>${esc(dateRange(ev.start, ev.end - 864e5))}</div>
@@ -1380,8 +1379,7 @@ function iplView() {
   const p = iplPhase();
   if (p.mode === "season") {
     const fixtures = upcoming("ipl");
-    if (!live.length && fixtures[0])
-      html += `<div class="sec" data-k="ih"><span>Next match</span></div>${nextCard(fixtures[0])}`;
+    if (!live.length && fixtures[0]) html += nextCard(fixtures[0]);
     html += tableSection(p.season.id, "Points table");
     if (fixtures.length > 1)
       html += `<div class="sec" data-k="if"><span>Fixtures</span><small>${fixtures.length} to play</small></div><div class="list" data-k="il">${fixtures
@@ -1550,8 +1548,7 @@ function seasonCard() {
     );
   }
   const starts = season.start && season.start > Date.now();
-  return `<div class="sec" data-k="ih"><span>IPL</span></div>
-    <div class="card season" data-k="season">
+  return `<div class="card season" data-k="season">
       <div class="meta"><span class="tag ipl">IPL</span><span>${esc(season.name)}</span></div>
       ${starts ? `<div class="when"><span class="cd">${esc(countdown(season.start, false))}</span><span>to go</span></div>` : ""}
       <div class="kv" style="border:0;padding:8px 0 0"><span class="lbl">Season window</span>${esc(dateRange(season.start, season.end))} <span class="dim">(as listed by Cricbuzz)</span></div>
@@ -2827,7 +2824,7 @@ function applyTheme() {
   const dark = t === "dark" || (t === "system" && darkQuery.matches);
   if (dark) document.documentElement.dataset.theme = "dark";
   else delete document.documentElement.dataset.theme;
-  $("#themeColor").content = dark ? "#000000" : "#f3f3f5";
+  $("#themeColor").content = dark ? "#0a0c16" : "#f4f1ea";
 }
 darkQuery.addEventListener("change", applyTheme);
 

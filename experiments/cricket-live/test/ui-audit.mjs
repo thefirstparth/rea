@@ -8,6 +8,7 @@
 //   contrast    text below WCAG AA contrast against what is painted under it
 //   image       an image that failed to load
 //   name        a control with no accessible name
+//   gap         more than 28px of empty page between a page heading and what follows
 // Boxes inside fixed or sticky chrome are compared only with each other, since page
 // content is meant to scroll under them. Text boxes are trimmed to the glyphs (not
 // the font's full ascent and descent) and to any ancestor that clips its overflow, so
@@ -337,6 +338,26 @@ function findBrokenImages(out) {
       });
 }
 
+// The page heading's last glyph to the first thing painted under it: a card's box,
+// a section label's text, or a sticker poking above its card.
+function findHeadGap(boxes, out) {
+  const ph = document.querySelector("#view .ph");
+  const next = ph?.nextElementSibling;
+  if (!next || !isVisible(next)) return;
+  const above = boxes.filter((b) => ph.contains(b.node)).map((b) => b.r.bottom);
+  const below = boxes.filter((b) => next.contains(b.node)).map((b) => b.r.top);
+  if (!next.classList.contains("sec"))
+    below.push(next.getBoundingClientRect().top);
+  const gap = Math.min(...below) - Math.max(...above);
+  if (above.length && gap > 28)
+    out.push({
+      kind: "gap",
+      a: describe(ph),
+      b: describe(next),
+      detail: `${Math.round(gap)}px empty`,
+    });
+}
+
 function runAudit(only) {
   const out = [];
   const boxes = collectBoxes();
@@ -347,6 +368,7 @@ function runAudit(only) {
     findClipped(out);
     findControlIssues(out);
     findBrokenImages(out);
+    findHeadGap(boxes, out);
   }
   return out;
 }
@@ -369,6 +391,7 @@ const PARTS = [
   backgroundAt,
   findContrast,
   findBrokenImages,
+  findHeadGap,
   runAudit,
 ];
 
