@@ -6,9 +6,11 @@ import {
   match,
   matches,
   olderCommentary,
+  pointsTable,
   schedule,
   scorecard,
   squads,
+  teamSchedule,
 } from "./cricbuzz.mjs";
 import * as cricinfo from "./cricinfo.mjs";
 import { UpstreamError } from "./http.mjs";
@@ -53,16 +55,8 @@ function cricinfoPage(id, query) {
   return { ttl: 60, load: () => cricinfoCommentary(id, Number(page)) };
 }
 
-// Each route names its loader and how long a shared cache may keep the answer.
-function resolve(pathname, query) {
-  const [root, kind, id, sub, rest, ...extra] = pathname
-    .split("/")
-    .filter(Boolean);
-  if (root !== "api" || extra.length) return null;
-  if (kind === "matches" && !id) return { ttl: 10, load: matches };
-  if (kind === "ipl" && !id) return { ttl: 3600, load: cricinfo.iplSeason };
-  if (kind === "schedule" && !id) return { ttl: 600, load: schedule };
-  if (kind !== "match" || !ID.test(id ?? "")) return null;
+// A match's routes: /api/match/:id[/scorecard|/squads|/commentary|/cricinfo[/commentary]].
+function matchRoute(id, sub, rest, query) {
   if (!sub) return { ttl: 10, load: () => match(id) };
   if (rest && sub !== "cricinfo") return null;
   // Same lifetime as the match payload, so the hero and scorecard agree.
@@ -73,6 +67,24 @@ function resolve(pathname, query) {
     return { ttl: 60, load: () => cricinfoInfo(id) };
   if (sub === "cricinfo" && rest === "commentary")
     return cricinfoPage(id, query);
+  return null;
+}
+
+// Each route names its loader and how long a shared cache may keep the answer.
+function resolve(pathname, query) {
+  const [root, kind, id, sub, rest, ...extra] = pathname
+    .split("/")
+    .filter(Boolean);
+  if (root !== "api" || extra.length) return null;
+  if (kind === "matches" && !id) return { ttl: 10, load: matches };
+  if (kind === "schedule" && !id) return { ttl: 600, load: schedule };
+  if (!ID.test(id ?? "")) return null;
+  if (kind === "match") return matchRoute(id, sub, rest, query);
+  // A competition's points table changes after each of its matches.
+  if (kind === "series" && sub === "table" && !rest)
+    return { ttl: 300, load: () => pointsTable(id) };
+  if (kind === "team" && !sub)
+    return { ttl: 1800, load: () => teamSchedule(id) };
   return null;
 }
 

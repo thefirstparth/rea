@@ -24,7 +24,10 @@ const S = {
   squadTeam: new Map(), // id -> 0|1
   ci: new Map(), // id -> Cricinfo info, or { available: false, error?, at }
   ciComm: new Map(), // id -> { items, olderPage, older, busy, error }
-  ipl: null, // Cricinfo IPL season summary (last result)
+  tables: new Map(), // series id -> { asOf, groups }: points tables
+  tableErr: new Map(),
+  team: new Map(), // team id -> { ahead, results }: the followed team's fixtures
+  teamErr: new Map(),
   sched: null, // { asOf, india: fixtures, ipl: { name, start, end, fixtures } }
   schedErr: null,
   openSeries: new Set(), // expanded series ids on list pages
@@ -40,6 +43,18 @@ try {
   // Storage blocked: keep the default.
 }
 const useCricinfo = (id) => commSrc === "ci" && S.ci.get(id)?.available;
+
+// The team the reader follows (any Cricbuzz team: India's opponents, an IPL side),
+// or null. Kept in the browser only.
+let fav = null;
+try {
+  const t = JSON.parse(localStorage.getItem("crease-team") ?? "null");
+  if (t && Number.isInteger(t.id) && typeof t.name === "string") fav = t;
+} catch {
+  // Storage blocked or unreadable: no team followed.
+}
+const isFav = (m) =>
+  !!fav && [m.t1?.id, m.t2?.id].some((id) => String(id) === String(fav.id));
 
 // Alerts for India and IPL matches: on only after the browser grants permission.
 const canAlert = "Notification" in window && "serviceWorker" in navigator;
@@ -482,9 +497,14 @@ async function poll(force) {
   view.setAttribute("aria-busy", "true");
   const jobs = [];
   if (r.kind === "list" || !S.list) jobs.push(loadList());
-  if (r.kind === "list" && r.tab === "ipl" && !S.ipl) jobs.push(loadIpl());
-  if (r.kind === "list" && r.tab !== "all" && schedStale())
-    jobs.push(loadSched());
+  // Tables and the followed team are found from the schedule: they load once it has.
+  const sched =
+    r.kind === "list" && r.tab !== "all" && schedStale() ? loadSched() : null;
+  if (sched) jobs.push(sched);
+  if (r.kind === "list" && (r.tab === "ipl" || (r.tab === "now" && fav)))
+    jobs.push(
+      Promise.resolve(sched).then(() => Promise.allSettled(listExtras(r))),
+    );
   if (r.kind === "match") jobs.push(...matchJobs(r, force));
   if (alertsOn && r.kind === "match") jobs.push(loadList());
   await Promise.allSettled(jobs);
@@ -676,12 +696,47 @@ async function loadSched() {
   }
 }
 
-async function loadIpl() {
+// Points tables change after each match of a running competition, rarely otherwise.
+const tableDue = (id) => {
+  const t = S.tables.get(id);
+  if (!t || S.tableErr.has(id)) return true;
+  const running = iplPhase().mode === "season";
+  return Date.now() - t.asOf > (running ? 5 : 6 * 60) * 60000;
+};
+
+async function loadTable(id) {
   try {
-    S.ipl = await api("/api/ipl");
-  } catch {
-    // The IPL card falls back to a generic off-season note.
+    S.tables.set(id, await api(`/api/series/${id}/table`));
+    S.tableErr.delete(id);
+  } catch (e) {
+    S.tableErr.set(id, e.message);
   }
+}
+
+const teamDue = (id) =>
+  !S.team.has(id) ||
+  S.teamErr.has(id) ||
+  Date.now() - S.team.get(id).asOf > 30 * 60000;
+
+async function loadTeam(id) {
+  try {
+    S.team.set(id, await api(`/api/team/${id}`));
+    S.teamErr.delete(id);
+  } catch (e) {
+    S.teamErr.set(id, e.message);
+  }
+}
+
+// The IPL tab's table; home's "Your team" card: the team's fixtures and, between IPL
+// seasons, an IPL side's finish in last season's table.
+function listExtras(r) {
+  const jobs = [];
+  const tables = new Set();
+  if (r.tab === "ipl") tables.add(iplTableId());
+  if (fav?.ipl && iplPhase().mode === "off") tables.add(S.sched?.iplLast?.id);
+  if (r.tab === "now" && fav && teamDue(fav.id)) jobs.push(loadTeam(fav.id));
+  for (const id of tables) if (id && tableDue(id)) jobs.push(loadTable(id));
+  return jobs;
 }
 
 async function loadOlder(id) {
@@ -747,7 +802,9 @@ function commentary(id) {
 
 const followed = () =>
   (S.list?.matches ?? []).filter(
-    (m) => m.tags.length && (m.phase === "live" || m.phase === "upcoming"),
+    (m) =>
+      (m.tags.length || isFav(m)) &&
+      (m.phase === "live" || m.phase === "upcoming"),
   );
 
 // Wickets and milestones need each live followed match's own payload; the open match
@@ -858,7 +915,7 @@ async function toggleAlerts() {
 function pick(tab) {
   const all = S.list?.matches ?? [];
   if (tab === "all") return all;
-  if (tab === "now") return all.filter((m) => m.tags.length);
+  if (tab === "now") return all.filter((m) => m.tags.length || isFav(m));
   return all.filter((m) => m.tags.includes(tab));
 }
 
@@ -1048,7 +1105,11 @@ function pageHead(tab, live) {
   const sub =
     S.list && !live.length
       ? `${esc(IDLE[tab])}${others ? ` <a class="link" href="#all">${others} other match${others > 1 ? "es" : ""} live →</a>` : ""}`
-      : esc(SUBS[tab]);
+      : esc(
+          tab === "now" && fav
+            ? `India, IPL and ${fav.name}, ball by ball`
+            : SUBS[tab],
+        );
   return `<div class="ph" data-k="ph"><h1>${title}</h1><p>${sub}</p></div>`;
 }
 
@@ -1064,14 +1125,15 @@ function homeView() {
   let html = pageHead("now", live);
   if (!S.list) return html + (S.listErr ? errorCard(S.listErr) : skeleton());
   html += liveSection(live);
-  const next = live.length
+  // A followed team's live match doesn't hide India's or the IPL's next one.
+  const next = live.some((m) => m.tags.length)
     ? null
     : [upcoming("india")[0], upcoming("ipl")[0]]
         .filter(Boolean)
         .sort(byStartAsc)[0];
   if (next)
     html += `<div class="sec" data-k="nh"><span>Next match</span></div>${nextCard(next)}`;
-  else if (!live.length)
+  else if (!live.some((m) => m.tags.length))
     html +=
       !S.sched && !S.schedErr
         ? skeleton(1)
@@ -1079,9 +1141,35 @@ function homeView() {
             "Nothing scheduled",
             "Cricbuzz lists no upcoming India or IPL matches yet.",
           );
+  html += favCard([...live, next].filter(Boolean));
   const focus = live[0] ?? next;
   if (focus) html += currentSeries(focus);
   return html + foot();
+}
+
+// The followed team, unless the page already shows its match: its next fixture, or
+// between IPL seasons an IPL side's last season and the next one's start.
+function favCard(shown) {
+  if (!fav || shown.some(isFav)) return "";
+  const head = `<div class="sec" data-k="fh"><span>Your team</span></div>`;
+  const ahead = S.team.get(fav.id)?.ahead?.[0];
+  if (ahead) return head + nextCard(ahead, fav.short || fav.name);
+  if (fav.ipl) return head + iplOffCard(fav);
+  if (!S.team.has(fav.id))
+    return S.teamErr.has(fav.id)
+      ? head +
+          empty(
+            `Couldn't load ${fav.name}'s fixtures`,
+            "Crease tries again in half an hour.",
+          )
+      : head + skeleton(1);
+  return (
+    head +
+    empty(
+      `${fav.name} have nothing scheduled`,
+      "Their next match shows here once Cricbuzz lists it.",
+    )
+  );
 }
 
 // India: the live or next match, recent results by series, and every series ahead.
@@ -1105,20 +1193,144 @@ function indiaView() {
   return html + foot();
 }
 
+// The IPL season now, or between seasons the next one's start and how the last ended.
+// A season counts as running from its first match to a few days after its last.
+const SEASON_GRACE = 3 * 864e5;
+function iplPhase() {
+  const cur = S.sched?.ipl;
+  const now = Date.now();
+  if (cur?.start && cur.start <= now && now <= (cur.end ?? now) + SEASON_GRACE)
+    return { mode: "season", season: cur };
+  return { mode: "off", next: cur, last: S.sched?.iplLast ?? null };
+}
+
+// The table the IPL tab shows: this season's while it runs, else last season's.
+function iplTableId() {
+  const p = iplPhase();
+  return p.mode === "season" ? p.season.id : p.last?.id;
+}
+
 function iplView() {
   const live = liveIn("ipl");
   let html = pageHead("ipl", live);
   if (!S.list) return html + (S.listErr ? errorCard(S.listErr) : skeleton());
-  html += liveSection(live) + iplAhead(live);
-  const done = pick("ipl")
-    .filter((m) => m.phase === "done")
-    .sort(byStartDesc)
-    .slice(0, 10);
-  if (done.length)
-    html += `<div class="sec" data-k="rh"><span>Results</span></div><div class="list" data-k="rl">${done.map(row).join("")}</div>`;
-  if (!live.length && !upcoming("ipl").length) html += iplLatest();
+  html += liveSection(live);
+  const p = iplPhase();
+  if (p.mode === "season") {
+    const fixtures = upcoming("ipl");
+    if (!live.length && fixtures[0])
+      html += `<div class="sec" data-k="ih"><span>Next match</span></div>${nextCard(fixtures[0])}`;
+    html += tableSection(p.season.id, "Points table");
+    if (fixtures.length > 1)
+      html += `<div class="sec" data-k="if"><span>Fixtures</span><small>${fixtures.length} to play</small></div><div class="list" data-k="il">${fixtures
+        .slice(live.length ? 0 : 1, 11)
+        .map(row)
+        .join("")}</div>`;
+    const done = [...pick("ipl"), ...(p.season.fixtures ?? [])]
+      .filter(
+        (m, i, all) =>
+          m.phase === "done" && all.findIndex((x) => x.id === m.id) === i,
+      )
+      .sort(byStartDesc)
+      .slice(0, 10);
+    if (done.length)
+      html += `<div class="sec" data-k="rh"><span>Results</span></div><div class="list" data-k="rl">${done.map(row).join("")}</div>`;
+  } else {
+    html += seasonCard();
+    if (fav?.ipl)
+      html += `<div class="sec" data-k="fh"><span>Your team</span></div>${iplOffCard(fav)}`;
+    if (p.last) {
+      html += champion(p.last);
+      html += tableSection(p.last.id, `${p.last.name} · final table`);
+    }
+  }
   return html + foot();
 }
+
+// Last season's winner, from its final.
+function champion(season) {
+  const f = season.final;
+  if (!f) return "";
+  const lost = loser(f);
+  const won = [f.t1, f.t2].find((t) => t.id !== lost);
+  if (!lost || !won) return "";
+  const year = season.name.match(/\d{4}/)?.[0] ?? "";
+  const beat = [f.t1, f.t2].find((t) => t.id === lost);
+  // "Royal Challengers Bengaluru won by 5 wickets" → "beat Gujarat Titans by 5 wickets"
+  const margin = f.status.match(/\bwon (by .+)$/i)?.[1] ?? "";
+  return `<div class="sec" data-k="ch"><span>Last season</span></div>
+    <a class="card champ" data-k="champ" href="#m/${f.id}/info">
+      ${flag(won, true)}<div><div class="nm">${esc(won.name)}</div><div class="sub">${esc(`Champions ${year}`.trim())} · beat ${esc(beat.name)} in the final${margin ? ` ${esc(margin)}` : ""}</div></div>
+      <svg class="cup" viewBox="0 0 24 24" aria-hidden="true"><path class="gold" d="M8 4h8v4a4 4 0 0 1-8 0z"/><path d="M8 5.5H5a3 3 0 0 0 3 4M16 5.5h3a3 3 0 0 1-3 4"/><path d="M12 12v4M8.5 20h7"/><path class="gold" d="M10 16h4v4h-4z"/></svg>
+    </a>`;
+}
+
+// An IPL side between seasons: where it finished last season, and when the next starts.
+function iplOffCard(team) {
+  const last = S.sched?.iplLast;
+  const t = last && S.tables.get(last.id);
+  const rows = t?.groups?.[0]?.teams ?? [];
+  const i = rows.findIndex((x) => String(x.id) === String(team.id));
+  const lostFinal = last?.final && loser(last.final);
+  const champ =
+    last?.final &&
+    lostFinal &&
+    String(lostFinal) !== String(team.id) &&
+    [last.final.t1.id, last.final.t2.id].some(
+      (id) => String(id) === String(team.id),
+    );
+  const lines = [
+    i >= 0
+      ? `${last.name.match(/\d{4}/)?.[0] ?? "Last season"}: ${champ ? "champions, " : ""}${ordinal(i + 1)} in the table, ${rows[i].won} won, ${rows[i].lost} lost`
+      : "",
+    S.sched?.ipl?.start
+      ? `${S.sched.ipl.name.replace(/Indian Premier League/i, "IPL")} starts ${shortDate.format(S.sched.ipl.start)}`
+      : "",
+  ].filter(Boolean);
+  return `<div class="card fav" data-k="favoff">${flag(team, true)}<div><div class="nm">${esc(team.name)}</div>${lines.map((l) => `<div class="sub">${esc(l)}</div>`).join("")}</div></div>`;
+}
+
+// A competition's points table: one card per group, the qualifying places above a
+// line, the followed team marked. Tapping a team follows it.
+function tableSection(id, title) {
+  const t = S.tables.get(id);
+  if (!t)
+    return S.tableErr.has(id)
+      ? `<div class="sec" data-k="pth"><span>${esc(title)}</span></div>${empty("Couldn't load the table", `${sentence(S.tableErr.get(id))} Crease tries again soon.`)}`
+      : skeleton(1);
+  // Following a team from here remembers whether it is an IPL side.
+  const ipl = [S.sched?.ipl?.id, S.sched?.iplLast?.id].includes(id);
+  return t.groups
+    .map((g, gi) => {
+      const name = t.groups.length > 1 ? g.name : title;
+      const rows = g.teams
+        .map((x, i) => {
+          const me = fav && String(fav.id) === String(x.id);
+          const cls = [
+            i < g.qualify ? "q" : "",
+            i === g.qualify - 1 ? "cut" : "",
+            me ? "me" : "",
+          ]
+            .filter(Boolean)
+            .join(" ");
+          return `<tr${cls ? ` class="${cls}"` : ""}><td class="n pos">${i + 1}</td><td><button class="tm" type="button" data-act="follow" data-team="${esc(JSON.stringify({ id: x.id, name: x.name, short: x.short, flag: x.flag, ipl }))}" aria-pressed="${me}" aria-label="${esc(`${me ? "Following" : "Follow"} ${x.name}`)}">${flag(x)}<span class="who">${esc(x.short)}</span><svg class="star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg></button>${x.form.length ? `<span class="form" title="Last ${x.form.length}, latest first">${x.form.map((f) => `<i class="${f}">${f}</i>`).join("")}</span>` : ""}</td><td class="n">${x.played}</td><td class="n">${x.won}</td><td class="n">${x.lost}</td><td class="n">${x.nr + x.tied}</td><td class="n">${esc(x.nrr)}</td><td class="n hi">${x.points}</td></tr>`;
+        })
+        .join("");
+      return `<div class="sec" data-k="pth${gi}"><span>${esc(name)}</span>${g.qualify ? `<small>Top ${g.qualify} go through</small>` : ""}</div>
+        <div class="card flush" data-k="pt${gi}"><table class="tbl pts"><thead><tr><th scope="col"><abbr title="Position">#</abbr></th><th scope="col">Team</th>${["P", "W", "L", "NR", "NRR", "Pts"].map((c) => `<th scope="col"><abbr title="${esc(TABLE_COLS[c])}">${c}</abbr></th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>
+        <p class="key" data-k="ptk"><b>Key</b> P played · W won · L lost · NR no result or tie · NRR net run rate · Pts points · ★ follow a team${g.qualify ? " · the line marks the qualifying places" : ""}</p></div>`;
+    })
+    .join("");
+}
+
+const TABLE_COLS = {
+  P: "Played",
+  W: "Won",
+  L: "Lost",
+  NR: "No result or tie",
+  NRR: "Net run rate",
+  Pts: "Points",
+};
 
 // All live order: India and IPL first, then internationals, leagues, domestic.
 const TYPE_RANK = { International: 1, League: 2, Domestic: 3 };
@@ -1158,20 +1370,6 @@ function upcoming(tag) {
 // The India side in a fixture ("India", "India A"), for its tag.
 const sideOf = (m) =>
   [m.t1.name, m.t2.name].find((n) => /^India(\s|$)/.test(n)) ?? "India";
-
-function iplAhead(live) {
-  if (live.length) {
-    const next = upcoming("ipl").slice(0, 10);
-    return next.length
-      ? `<div class="sec" data-k="ih"><span>IPL up next</span></div><div class="list" data-k="il">${next.map(row).join("")}</div>`
-      : "";
-  }
-  const fixtures = upcoming("ipl");
-  if (fixtures.length) {
-    return `<div class="sec" data-k="ih"><span>Next IPL match</span></div>${nextCard(fixtures[0])}<div class="sec" data-k="if"><span>Fixtures</span><small>${fixtures.length} to play</small></div><div class="list" data-k="il">${fixtures.slice(1).map(row).join("")}</div>`;
-  }
-  return seasonCard();
-}
 
 // Off-season: the next IPL season as Cricbuzz lists it, before fixtures exist.
 function seasonCard() {
@@ -1249,10 +1447,13 @@ function dateRange(a, b = a) {
   return `${start} – ${end}`;
 }
 
-function nextCard(m) {
+// `label` names whose match it is when that isn't India or the IPL (a followed team).
+function nextCard(m, label = "") {
   const tag = m.tags.includes("ipl")
     ? '<span class="tag ipl">IPL</span>'
-    : `<span class="tag india">${esc(sideOf(m))}</span>`;
+    : m.tags.includes("india")
+      ? `<span class="tag india">${esc(sideOf(m))}</span>`
+      : `<span class="tag">${esc(label || m.series)}</span>`;
   const where = m.venue
     ? [m.venue.ground, m.venue.city].filter(Boolean).join(", ")
     : "";
@@ -1544,35 +1745,6 @@ function seriesRow(g) {
       <div class="nx"><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></div></summary>
     ${fixtureList(g.fixtures)}
   </details>`;
-}
-
-// A Cricinfo team's crest; its abbreviation when Cricinfo has no logo.
-function teamLogo(x) {
-  if (x.logo)
-    return `<img class="flag logo" src="${esc(x.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer">`;
-  return `<span class="flag mono" aria-hidden="true">${esc(x.short ?? "")}</span>`;
-}
-
-// The last IPL result Cricinfo lists, usually the final.
-function iplLatest() {
-  const m = S.ipl?.latest?.[0];
-  if (!m || m.state !== "Result") return "";
-  const rows = m.sides
-    .map(
-      (x) =>
-        `<div class="side${m.winner && !x.won ? " lose" : ""}">${teamLogo(x)}<span class="nm">${esc(x.name)}</span><span class="sc" style="font-size:1rem">${esc(x.score.split(" (")[0])}</span></div>${x.score.includes(" (") ? `<div class="dim" style="font-size:var(--t-cap);margin:-2px 0 2px 30px">${esc(x.score.slice(x.score.indexOf(" (") + 1))}</div>` : ""}`,
-    )
-    .join("");
-  const line = [
-    m.winner ? `${m.winner} won` : m.state,
-    m.potm ? `Player of the match: ${m.potm}` : "",
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  return `<div class="sec" data-k="iplh"><span>Last season</span><small>${m.date ? esc(yearDate.format(m.date)) : ""}</small></div>
-    <div class="card" data-k="ipll"><div class="dim" style="font-size:var(--t-meta);margin-bottom:8px">${esc(m.name)}</div><div class="sides">${rows}</div>
-    <div style="font-size:var(--t-meta);font-weight:650;margin-top:10px">${esc(line)}</div>
-    ${m.link ? `<a class="link" style="margin-top:6px" href="${esc(m.link)}" target="_blank" rel="noopener noreferrer">Full scorecard on ESPN (opens a new tab) →</a>` : ""}</div>`;
 }
 
 function empty(title, body, rawBody = false) {
@@ -2400,6 +2572,72 @@ if (canAlert) {
   });
 }
 
+// Follow a team (null: none). The choice is the reader's, so it is stored.
+function follow(t) {
+  fav = t;
+  try {
+    if (t) localStorage.setItem("crease-team", JSON.stringify(t));
+    else localStorage.removeItem("crease-team");
+  } catch {
+    // Storage blocked: the choice lasts for this visit only.
+  }
+  say(
+    t
+      ? `Following ${t.name}. Their matches show on Now.`
+      : "Not following a team.",
+  );
+  render();
+  if (t) refresh();
+}
+
+// Teams to choose from in Settings: every team in a loaded points table (IPL sides,
+// a tournament's countries), plus every international side in the known fixtures.
+function teamChoices() {
+  const byId = new Map();
+  const add = (t, ipl) => {
+    if (t?.id && t.name && !byId.has(t.id))
+      byId.set(t.id, {
+        id: t.id,
+        name: t.name,
+        short: t.short ?? "",
+        flag: t.flag ?? null,
+        ipl,
+      });
+  };
+  const iplIds = [S.sched?.ipl?.id, S.sched?.iplLast?.id].filter(Boolean);
+  for (const [id, t] of S.tables)
+    for (const g of t.groups)
+      for (const x of g.teams) add(x, iplIds.includes(id));
+  for (const m of [...knownMatches(), ...(S.sched?.ipl?.fixtures ?? [])]) {
+    const ipl = m.tags?.includes("ipl");
+    if (ipl || m.type === "International" || m.tags?.includes("india"))
+      for (const t of [m.t1, m.t2])
+        if (!/\b(women|A|U19|under-19)\b/i.test(t.name)) add(t, !!ipl);
+  }
+  if (fav) add(fav, !!fav.ipl);
+  return [...byId.values()]
+    .filter((t) => !/^TBC|\(/.test(t.name))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function fillTeamSelect() {
+  const sel = $("#teamSelect");
+  const all = teamChoices();
+  const opt = (t) =>
+    `<option value="${esc(t.id)}"${fav && String(fav.id) === String(t.id) ? " selected" : ""}>${esc(t.name)}</option>`;
+  sel.innerHTML = `<option value="">No team</option>${[
+    ["IPL", all.filter((t) => t.ipl)],
+    ["Countries", all.filter((t) => !t.ipl)],
+  ]
+    .filter(([, list]) => list.length)
+    .map(
+      ([label, list]) =>
+        `<optgroup label="${label}">${list.map(opt).join("")}</optgroup>`,
+    )
+    .join("")}`;
+  sel._teams = all;
+}
+
 // Theme: "light" or "dark" when chosen, otherwise the device's setting (also when
 // storage holds anything else).
 const darkQuery = matchMedia("(prefers-color-scheme: dark)");
@@ -2429,10 +2667,15 @@ $("#settingsBtn").addEventListener("click", () => {
   ).checked = true;
   sheet.querySelector(`input[name=theme][value="${themeChoice()}"]`).checked =
     true;
+  fillTeamSelect();
   openSheet("#settingsSheet");
 });
 $("#settingsSheet").addEventListener("change", (e) => {
   const { name, value } = e.target;
+  if (e.target.id === "teamSelect") {
+    const t = e.target._teams?.find((x) => String(x.id) === value) ?? null;
+    return follow(t);
+  }
   if (name === "theme") themeThisVisit = value;
   try {
     if (name === "clock") localStorage.setItem("crease-clock", value);
@@ -2494,6 +2737,14 @@ view.addEventListener("click", (e) => {
     }
     render();
     if (lacksData(r)) refresh();
+  } else if (btn.dataset.act === "follow") {
+    let t = null;
+    try {
+      t = JSON.parse(btn.dataset.team);
+    } catch {
+      return;
+    }
+    follow(fav && String(fav.id) === String(t.id) ? null : t);
   } else if (btn.dataset.act === "team" && r.kind === "match") {
     S.squadTeam.set(r.id, Number(btn.dataset.i));
     render();

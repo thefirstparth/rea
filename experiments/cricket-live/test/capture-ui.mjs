@@ -6,13 +6,22 @@
 //
 // It picks a live match, a finished India match and India's next fixture from the
 // server's own lists, opens each of their sections, loads earlier commentary and
-// switches the commentary source, so the recording covers what those views fetch.
+// switches the commentary source, so the recording covers what those views fetch. It
+// follows an IPL side throughout, for the team card and the IPL tab's tables.
 // Browser: CREASE_BROWSER, else Playwright's default Chromium.
 
 import { writeFile } from "node:fs/promises";
 import { chromium } from "playwright-core";
 
 const BASE = process.argv[2] ?? "http://127.0.0.1:5173";
+// Royal Challengers Bengaluru, Cricbuzz team 59: the followed team in the recording.
+const FOLLOWED = {
+  id: 59,
+  name: "Royal Challengers Bengaluru",
+  short: "RCB",
+  flag: null,
+  ipl: true,
+};
 const OUT = new URL("./fixtures/ui-api.json", import.meta.url);
 
 const get = async (path) => (await fetch(BASE + path)).json();
@@ -38,6 +47,11 @@ const browser = await chromium.launch({
     : [],
 });
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+// Follow an IPL side, so the recording has a team's fixtures and last season's table.
+await page.addInitScript(
+  (t) => localStorage.setItem("crease-team", t),
+  JSON.stringify(FOLLOWED),
+);
 const api = {};
 page.on("response", async (res) => {
   const url = new URL(res.url());

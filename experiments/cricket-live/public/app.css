@@ -1032,6 +1032,122 @@ details.sr .stand b.w {
 .sr-chips .rcr {
   margin-top: 0;
 }
+/* Points tables: position, the team (a button: tap to follow), its form, figures. The
+   qualifying places sit above a line; the followed team is tinted. */
+.tbl.pts td,
+.tbl.pts th {
+  vertical-align: middle;
+}
+.tbl.pts td.n,
+.tbl.pts th:not(:first-child):not(:nth-child(2)) {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+.tbl.pts td:last-child,
+.tbl.pts th:last-child {
+  padding-right: 12px;
+}
+.tbl.pts td:first-child,
+.tbl.pts th:first-child {
+  width: auto;
+  padding-right: 4px;
+}
+.tbl.pts td:nth-child(2),
+.tbl.pts th:nth-child(2) {
+  width: 100%;
+  text-align: left;
+}
+.tbl.pts .pos {
+  color: var(--muted);
+}
+.tbl.pts tr.cut td {
+  border-bottom: 1.5px solid var(--accent);
+}
+.tbl.pts tr.me td {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.tm {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.tm .star {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+.tm[aria-pressed="true"] .star {
+  fill: #f2b705;
+  stroke: #a87800;
+}
+.form {
+  display: flex;
+  gap: 2px;
+  margin-top: -6px;
+  padding-bottom: 6px;
+}
+.form i {
+  font-style: normal;
+  font-family: var(--num);
+  font-size: 0.7rem;
+  font-weight: 700;
+  width: 14px;
+  text-align: center;
+  border-radius: 3px;
+  color: var(--muted);
+}
+/* Wins keep the same green in both themes, like the ball chips, for white text. */
+.form i.W {
+  color: #fff;
+  background: #147a40;
+}
+/* The champion and a followed side between seasons: a sticker card with a flag. */
+.card.champ,
+.card.fav {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
+.card.champ .nm,
+.card.fav .nm {
+  font-weight: 750;
+  font-size: var(--t-title);
+}
+.card.champ .sub,
+.card.fav .sub {
+  font-size: var(--t-meta);
+  color: var(--muted);
+  margin-top: 2px;
+}
+.card.champ {
+  box-shadow:
+    0 0 0 3px #f2b705,
+    var(--lift);
+}
+.cup {
+  width: 30px;
+  height: 30px;
+  fill: none;
+  stroke: var(--ink2);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cup .gold {
+  fill: #f2b705;
+  stroke: #a87800;
+}
 /* A series ahead leads with its start date as a calendar tile. */
 details.sr.ahead > summary {
   grid-template-columns: 46px 1fr auto;
@@ -2084,6 +2200,28 @@ details.ci.note[open] .more-note {
   color: var(--ink);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
 }
+/* The sheet scrolls when its settings outgrow a short screen. */
+.sheet {
+  overflow-y: auto;
+}
+.pick {
+  display: grid;
+  gap: 8px;
+  padding: 10px 4px 4px;
+  border-top: 0.5px solid var(--line2);
+  font-size: var(--t-meta);
+  color: var(--muted);
+}
+.pick select {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--sunk);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-body);
+}
 .sheet::backdrop {
   background: rgba(14, 19, 48, 0.45);
 }
@@ -2260,6 +2398,15 @@ abbr[title] {
   .brand {
     gap: 6px;
     padding: 0 2px;
+  }
+  /* Points tables: no-results drop out (played minus won minus lost gives them). */
+  .tbl.pts td:nth-child(6),
+  .tbl.pts th:nth-child(6) {
+    display: none;
+  }
+  .tbl.pts td.n,
+  .tbl.pts th {
+    font-size: 0.95em;
   }
   /* "18s ago", "Offline": the short form of the freshness line. */
   .fresh .fx {

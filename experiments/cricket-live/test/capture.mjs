@@ -18,6 +18,10 @@ const CB = "https://www.cricbuzz.com";
 const CI = "https://site.web.api.espn.com/apis/site/v2/sports/cricket";
 // IPL 2026 is complete, so its series page is a stable in-season fixture source.
 const PAST_IPL_SERIES = 9241;
+// The 2027 Men's World Cup: groups and fixtures published, no match played yet.
+const GROUP_TOURNAMENT = 13289;
+// The archive year that holds IPL 2026.
+const ARCHIVE_YEAR = 2026;
 const INDIA_TEAM = 2;
 const FIXTURES = new URL("./fixtures/", import.meta.url);
 
@@ -151,6 +155,25 @@ await save(
   await page("/cricket-schedule/series/league", ["seriesScheduleData"]),
 );
 
+// --- Points tables (a finished league; a group tournament not yet started) and the
+// yearly series archive.
+await save(
+  "cb-points-ipl.flight.txt",
+  await page(`/cricket-series/${PAST_IPL_SERIES}/x/points-table`, [
+    "pointsTableData",
+  ]),
+);
+await save(
+  "cb-points-tournament.flight.txt",
+  await page(`/cricket-series/${GROUP_TOURNAMENT}/x/points-table`, [
+    "pointsTableData",
+  ]),
+);
+await save(
+  "cb-archive.flight.txt",
+  await page(`/cricket-scorecard-archives/${ARCHIVE_YEAR}`, ["seriesMapProto"]),
+);
+
 // --- Cricinfo (ESPN API), cut down to the fields the adapter reads.
 const panel = await json(`${CI}/scorepanel`);
 await save("ci-panel.json", {
@@ -199,11 +222,6 @@ if (ev) {
       )?.commentary,
     );
 }
-const ipl = await json(`${CI}/8048/scoreboard`);
-await save("ci-ipl.json", {
-  leagues: [{ calendar: ipl?.leagues?.[0]?.calendar }],
-  events: ipl?.events,
-});
 
 const brief = (m) => ({
   id: m.id,

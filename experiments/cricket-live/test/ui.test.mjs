@@ -458,3 +458,41 @@ test(
     await v.close();
   },
 );
+
+test(
+  "between seasons the IPL tab shows last season, and a tapped team is followed",
+  { skip },
+  async () => {
+    const v = await open("#ipl");
+    await v.page.locator(".card.champ").waitFor();
+    assert.match(
+      await v.page.locator(".card.champ").innerText(),
+      /Champions \d{4}/,
+    );
+    const rows = v.page.locator(".tbl.pts tbody tr");
+    assert.equal(await rows.count(), 10);
+    assert.equal(await v.page.locator(".tbl.pts tr.cut").count(), 1);
+    // Follow the table's leader; the choice is stored and shows on Now.
+    const top = rows.first().locator("button.tm");
+    const name = (await top.getAttribute("aria-label")).replace(/^Follow /, "");
+    await top.click();
+    assert.equal(await top.getAttribute("aria-pressed"), "true");
+    assert.match(
+      await v.page.evaluate(() => localStorage.getItem("crease-team")),
+      new RegExp(name),
+    );
+    await v.page.evaluate(() => (location.hash = "#now"));
+    await v.page.locator('[data-k="fh"]').waitFor();
+    assert.match(await v.page.locator("#view").innerText(), new RegExp(name));
+    // Settings lists the team, selected; "No team" stops following it.
+    await v.page.locator("#settingsBtn").click();
+    const sel = v.page.locator("#teamSelect");
+    assert.equal(await sel.evaluate((s) => s.selectedOptions[0].text), name);
+    await sel.selectOption("");
+    assert.equal(
+      await v.page.evaluate(() => localStorage.getItem("crease-team")),
+      null,
+    );
+    await v.close();
+  },
+);
