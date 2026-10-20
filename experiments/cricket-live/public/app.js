@@ -725,9 +725,17 @@ const IDLE = {
 
 function listView(tab) {
   if (tab === "all") return allLiveView();
-  const live = pick(tab)
+  if (tab === "now") return homeView();
+  if (tab === "india") return indiaView();
+  return iplView();
+}
+
+const liveIn = (tab) =>
+  pick(tab)
     .filter((m) => m.phase === "live")
     .sort((a, b) => b.tags.length - a.tags.length || byStartAsc(a, b));
+
+function pageHead(tab, live) {
   const title =
     tab === "now" && S.list && !live.length ? "Up next" : TITLES[tab];
   const others = pick("all").filter(
@@ -737,22 +745,75 @@ function listView(tab) {
     S.list && !live.length
       ? `${esc(IDLE[tab])}${others ? ` <a href="#all" style="color:var(--accent);font-weight:650">${others} other match${others > 1 ? "es" : ""} live →</a>` : ""}`
       : esc(SUBS[tab]);
-  let html = `<div class="ph" data-k="ph"><h1>${title}</h1><p>${sub}</p></div>`;
+  return `<div class="ph" data-k="ph"><h1>${title}</h1><p>${sub}</p></div>`;
+}
+
+const liveSection = (live) =>
+  live.length
+    ? `<div class="sec" data-k="lh"><span>Live</span><small>${live.length} match${live.length > 1 ? "es" : ""}</small></div>${live.map(hero).join("")}`
+    : "";
+
+// Home is only what matters now: the live India or IPL match, else the soonest
+// fixture of either, and that match's series. Everything else lives in its tab.
+function homeView() {
+  const live = liveIn("now");
+  let html = pageHead("now", live);
   if (!S.list) return html + (S.listErr ? errorCard(S.listErr) : skeleton());
-  if (live.length)
-    html += `<div class="sec" data-k="lh"><span>Live</span><small>${live.length} match${live.length > 1 ? "es" : ""}</small></div>${live.map(hero).join("")}`;
-  if (tab !== "ipl") html += indiaAhead(tab, live);
-  if (tab !== "india") html += iplAhead(tab, live);
-  const done = pick(tab)
+  html += liveSection(live);
+  const next = live.length
+    ? null
+    : [upcoming("india")[0], upcoming("ipl")[0]]
+        .filter(Boolean)
+        .sort(byStartAsc)[0];
+  if (next)
+    html += `<div class="sec" data-k="nh"><span>Next match</span></div>${nextCard(next)}`;
+  else if (!live.length)
+    html +=
+      !S.sched && !S.schedErr
+        ? skeleton(1)
+        : empty(
+            "Nothing scheduled",
+            "Cricbuzz lists no upcoming India or IPL matches yet.",
+          );
+  const focus = live[0] ?? next;
+  if (focus) html += currentSeries(focus);
+  return html + foot(S.list.asOf, S.listErr || S.schedErr);
+}
+
+// India: the live or next match, recent results by series, and every series ahead.
+function indiaView() {
+  const live = liveIn("india");
+  let html = pageHead("india", live);
+  if (!S.list) return html + (S.listErr ? errorCard(S.listErr) : skeleton());
+  html += liveSection(live);
+  const fixtures = upcoming("india");
+  if (!live.length && fixtures.length)
+    html += `<div class="sec" data-k="nh"><span>Next match</span></div>${nextCard(fixtures[0])}`;
+  html += indiaResultsSection();
+  if (fixtures.length)
+    html += `<div class="sec" data-k="sh"><span>Series ahead</span></div><div class="list" data-k="sl">${groupSeries(fixtures).slice(0, 12).map(seriesRow).join("")}</div>`;
+  else if (!S.sched && !S.schedErr) html += skeleton(1);
+  else if (!live.length)
+    html += empty(
+      "No India fixtures listed",
+      "Cricbuzz hasn't published India's next matches yet.",
+    );
+  return html + foot(S.list.asOf, S.listErr || S.schedErr);
+}
+
+function iplView() {
+  const live = liveIn("ipl");
+  let html = pageHead("ipl", live);
+  if (!S.list) return html + (S.listErr ? errorCard(S.listErr) : skeleton());
+  html += liveSection(live) + iplAhead(live);
+  const done = pick("ipl")
     .filter((m) => m.phase === "done")
     .sort(byStartDesc)
-    .slice(0, tab === "now" ? 3 : 10);
+    .slice(0, 10);
   if (done.length)
     html += `<div class="sec" data-k="rh"><span>Results</span></div><div class="list" data-k="rl">${done.map(row).join("")}</div>`;
-  if (tab === "ipl" && !live.length && !upcoming("ipl").length)
-    html += iplLatest();
-  const err = S.listErr || S.schedErr;
-  return html + foot(S.list.asOf, err, tab === "ipl" && !!S.ipl);
+  if (!live.length && !upcoming("ipl").length) html += iplLatest();
+  return html + foot(S.list.asOf, S.listErr || S.schedErr, !!S.ipl);
 }
 
 function allLiveView() {
@@ -789,54 +850,34 @@ function upcoming(tag) {
 const sideOf = (m) =>
   [m.t1.name, m.t2.name].find((n) => /^India(\s|$)/.test(n)) ?? "India";
 
-function indiaAhead(tab, live) {
-  const fixtures = upcoming("india");
-  if (!fixtures.length) {
-    if (!S.sched && !S.schedErr) return skeleton(1);
-    return live.some((m) => m.tags.includes("india"))
-      ? ""
-      : empty(
-          "No India fixtures listed",
-          "Cricbuzz hasn't published India's next matches yet.",
-        );
-  }
-  let html = "";
-  // While India play, the live card leads; otherwise their next fixture does.
-  if (!live.some((m) => m.tags.includes("india")))
-    html += `<div class="sec" data-k="nh"><span>Next match</span></div>${nextCard(fixtures[0])}`;
-  const series = groupSeries(fixtures).slice(0, tab === "now" ? 3 : 12);
-  html += `<div class="sec" data-k="sh"><span>Series ahead</span><small>India</small></div><div class="list" data-k="sl">${series.map(seriesRow).join("")}</div>`;
-  return html;
-}
-
-function iplAhead(tab, live) {
-  if (live.some((m) => m.tags.includes("ipl"))) {
-    const next = upcoming("ipl").slice(0, tab === "ipl" ? 10 : 3);
+function iplAhead(live) {
+  if (live.length) {
+    const next = upcoming("ipl").slice(0, 10);
     return next.length
       ? `<div class="sec" data-k="ih"><span>IPL up next</span></div><div class="list" data-k="il">${next.map(row).join("")}</div>`
       : "";
   }
   const fixtures = upcoming("ipl");
   if (fixtures.length) {
-    let html = `<div class="sec" data-k="ih"><span>Next IPL match</span></div>${nextCard(fixtures[0])}`;
-    if (tab === "ipl")
-      html += `<div class="sec" data-k="if"><span>Fixtures</span><small>${fixtures.length} to play</small></div><div class="list" data-k="il">${fixtures.slice(1).map(row).join("")}</div>`;
-    return html;
+    return `<div class="sec" data-k="ih"><span>Next IPL match</span></div>${nextCard(fixtures[0])}<div class="sec" data-k="if"><span>Fixtures</span><small>${fixtures.length} to play</small></div><div class="list" data-k="il">${fixtures.slice(1).map(row).join("")}</div>`;
   }
-  return seasonCard(tab);
+  return seasonCard();
 }
 
 // Off-season: the next IPL season as Cricbuzz lists it, before fixtures exist.
-function seasonCard(tab) {
+function seasonCard() {
   const season = S.sched?.ipl;
   if (!season) {
-    if (!S.sched && !S.schedErr) return tab === "ipl" ? skeleton(1) : "";
-    return tab === "ipl"
-      ? empty(
-          "No IPL season listed",
-          "The next season appears here once Cricbuzz lists it.",
-        )
-      : "";
+    if (!S.sched && !S.schedErr) return skeleton(1);
+    if (S.schedErr || S.sched.failed.includes("ipl"))
+      return empty(
+        "Couldn't load the IPL calendar",
+        "Cricbuzz didn't answer. Crease tries again every half hour.",
+      );
+    return empty(
+      "No IPL season listed",
+      "The next season appears here once Cricbuzz lists it.",
+    );
   }
   const starts = season.start && season.start > Date.now();
   return `<div class="sec" data-k="ih"><span>IPL</span></div>
@@ -944,16 +985,123 @@ function composition(fixtures) {
     .join(" · ");
 }
 
-// One mark per fixture, a small gap where the format changes; the next match is ringed.
+// India's result in a completed match. Without India (the IPL), decided or not.
+function outcome(m) {
+  const india = [m.t1, m.t2].find((t) => /^India(\s|$)/.test(t.name));
+  const lost = loser(m);
+  if (!lost) return "nr";
+  if (!india) return "done";
+  return lost === india.id ? "lost" : "won";
+}
+
+// "Won 2 · Lost 1 · 1 no result"
+function tally(played) {
+  const n = { won: 0, lost: 0, nr: 0 };
+  for (const m of played) n[outcome(m)] = (n[outcome(m)] ?? 0) + 1;
+  return [
+    n.won || n.lost ? `Won ${n.won} · Lost ${n.lost}` : "",
+    n.nr ? `${n.nr} no result` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+// One mark per match in date order, a small gap where the format changes: results
+// filled (India's wins in cobalt), the live match red, the next one ringed.
 const FX_MAX = 24;
-function fixtureMarks(fixtures) {
+function fixtureMarks(fixtures, label) {
   const shown = fixtures.slice(0, FX_MAX);
-  const marks = shown.map(
-    (m, i) =>
-      `${i && m.format !== shown[i - 1].format ? '<i class="gap"></i>' : ""}<i class="${[m.format === "TEST" ? "t" : "", i === 0 ? "next" : ""].join(" ").trim()}"></i>`,
-  );
+  const next = shown.find((m) => m.phase === "upcoming");
+  const marks = shown.map((m, i) => {
+    const state =
+      m.phase === "live"
+        ? "live"
+        : m.phase === "done"
+          ? outcome(m)
+          : m === next
+            ? "next"
+            : "";
+    const cls = [m.format === "TEST" ? "t" : "", state].join(" ").trim();
+    return `${i && m.format !== shown[i - 1].format ? '<i class="gap"></i>' : ""}<i class="${cls}"></i>`;
+  });
   const more = fixtures.length - shown.length;
-  return `<div class="fx" role="img" aria-label="${esc(`${composition(fixtures)} to play; the first is next`)}">${marks.join("")}${more > 0 ? `<small>+${more}</small>` : ""}</div>`;
+  return `<div class="fx" role="img" aria-label="${esc(label)}">${marks.join("")}${more > 0 ? `<small>+${more}</small>` : ""}</div>`;
+}
+
+const sameSeries = (a, b) =>
+  String(a.seriesId ?? a.series) === String(b.seriesId ?? b.series);
+
+// Every known match of `focus`'s series, freshest copy first: live list, schedule, results.
+function seriesOf(focus) {
+  const byId = new Map();
+  for (const m of [
+    ...(S.list?.matches ?? []),
+    ...(S.sched?.india ?? []),
+    ...(S.sched?.indiaResults ?? []),
+    ...(S.sched?.ipl?.fixtures ?? []),
+  ])
+    if (sameSeries(m, focus) && !byId.has(String(m.id)))
+      byId.set(String(m.id), m);
+  return [...byId.values()].sort(byStartAsc);
+}
+
+// Home's second card: where the live or next match sits in its series.
+function currentSeries(focus) {
+  const all = seriesOf(focus);
+  if (all.length < 2) return "";
+  const played = all.filter((m) => m.phase === "done");
+  const ahead = all
+    .filter((m) => m.phase !== "done" && String(m.id) !== String(focus.id))
+    .slice(0, 3);
+  const latest = played.at(-1);
+  const record = tally(played);
+  const tab = focus.tags.includes("ipl") ? "ipl" : "india";
+  return `<div class="sec" data-k="csh"><span>This series</span><small>${played.length} of ${all.length} played</small></div>
+    <div class="card series-now" data-k="cs">
+      <div class="nm">${esc(focus.series)}</div>
+      <div class="sub">${esc(dateRange(all[0].start, all.at(-1).start))} · ${esc(composition(all))}${record ? ` · ${esc(record)}` : ""}</div>
+      ${fixtureMarks(all, `${played.length} of ${all.length} played${record ? `: ${record}` : ""}`)}
+      ${latest ? `<div class="latest"><span class="lbl">Latest</span>${esc(`${latest.desc}: ${latest.status}`)}</div>` : ""}
+    </div>
+    ${ahead.length ? `<div class="sec" data-k="cah"><span>Then</span></div><div class="list" data-k="csl">${ahead.map(fixtureRow).join("")}</div>` : ""}
+    <a class="to-tab" data-k="cslink" href="#${tab}">${tab === "ipl" ? "All IPL fixtures and results" : "India's results and every series ahead"} →</a>`;
+}
+
+// India's recent results, freshest first: the live list's finished matches, then the
+// results page. Null only when nothing is known and the results page failed.
+function indiaResults() {
+  const byId = new Map();
+  for (const m of [
+    ...pick("india").filter((m) => m.phase === "done"),
+    ...(S.sched?.indiaResults ?? []),
+  ])
+    if (!byId.has(String(m.id))) byId.set(String(m.id), m);
+  const all = [...byId.values()].sort(byStartDesc);
+  return all.length || S.sched?.indiaResults ? all : null;
+}
+
+function indiaResultsSection() {
+  if (!S.sched && !S.schedErr) return skeleton(1);
+  const results = indiaResults();
+  if (!results)
+    return empty(
+      "Couldn't load India's results",
+      "Cricbuzz didn't answer. Crease tries again every half hour.",
+    );
+  if (!results.length) return "";
+  return `<div class="sec" data-k="rh"><span>Results</span><small>Last ${results.length} matches</small></div><div class="list" data-k="rl">${groupSeries(results).map(resultsRow).join("")}</div>`;
+}
+
+// A finished (or finishing) series: its record and marks, opening to each result.
+function resultsRow(g) {
+  const played = g.fixtures.slice().reverse();
+  const record = tally(played);
+  const open = S.openSeries.has(`r${g.id}`);
+  return `<details class="sr" data-k="rs${esc(g.id)}" data-series="r${esc(g.id)}"${open ? " open" : ""}>
+    <summary><div><div class="nm">${esc(g.name)}</div><div class="sub">${esc(dateRange(played[0].start, played.at(-1).start))}${record ? ` · ${esc(record)}` : ""}</div>${fixtureMarks(played, `${played.length} played${record ? `: ${record}` : ""}`)}</div>
+      <div class="nx">${played.at(-1).start ? esc(dayLabel(played.at(-1).start)) : ""}<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></div></summary>
+    ${g.fixtures.map(row).join("")}
+  </details>`;
 }
 
 function seriesRow(g) {
@@ -961,7 +1109,7 @@ function seriesRow(g) {
   const last = g.fixtures.at(-1);
   const open = S.openSeries.has(g.id);
   return `<details class="sr" data-k="sr${esc(g.id)}" data-series="${esc(g.id)}"${open ? " open" : ""}>
-    <summary><div><div class="nm">${esc(g.name)}</div><div class="sub">${esc(dateRange(first.start, last.start))} · ${esc(composition(g.fixtures))} to play</div>${fixtureMarks(g.fixtures)}</div>
+    <summary><div><div class="nm">${esc(g.name)}</div><div class="sub">${esc(dateRange(first.start, last.start))} · ${esc(composition(g.fixtures))} to play</div>${fixtureMarks(g.fixtures, `${composition(g.fixtures)} to play; the first is next`)}</div>
       <div class="nx">${first.start ? esc(dayLabel(first.start)) : ""}<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></div></summary>
     ${g.fixtures.map(fixtureRow).join("")}
   </details>`;

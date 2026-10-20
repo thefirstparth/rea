@@ -1485,6 +1485,57 @@ details.inn[open] > summary .inn-h {
 .fx i.next {
   box-shadow: inset 0 0 0 2.5px var(--accent);
 }
+.fx i.won {
+  background: var(--accent);
+  box-shadow: none;
+}
+.fx i.lost,
+.fx i.done {
+  background: var(--muted);
+  box-shadow: none;
+}
+.fx i.nr {
+  background: var(--sunk);
+}
+.fx i.live {
+  background: var(--live);
+  box-shadow: none;
+}
+
+/* Home: the series the live or next match belongs to */
+.series-now .nm {
+  font-weight: 700;
+  font-size: var(--t-title);
+}
+.series-now .sub {
+  margin-top: 2px;
+  font-size: var(--t-meta);
+  color: var(--muted);
+}
+.series-now .latest {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 0.5px solid var(--line2);
+  font-size: var(--t-meta);
+  color: var(--ink2);
+}
+.series-now .latest .lbl {
+  margin-right: 8px;
+  font-size: var(--t-cap);
+  font-weight: 650;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.to-tab {
+  display: block;
+  margin: 14px 4px 0;
+  min-height: 44px;
+  line-height: 44px;
+  font-weight: 650;
+  font-size: var(--t-meta);
+  color: var(--accent);
+}
 .fx i.gap {
   width: 4px;
   box-shadow: none;
