@@ -69,9 +69,9 @@ try {
 const WC_LEAD = 14 * 864e5;
 const WC_TAIL = 2 * 864e5;
 function wcShown() {
+  if (wcMode !== "auto") return wcMode === "on";
   const ev = S.tour?.event;
-  if (!ev || wcMode === "off") return false;
-  if (wcMode === "on") return true;
+  if (!ev) return false;
   const now = Date.now();
   return now >= ev.start - WC_LEAD && now <= ev.end + WC_TAIL;
 }
@@ -143,8 +143,28 @@ async function api(path) {
       new Error(body?.error || `The server answered ${res.status}.`),
       { status: res.status },
     );
+  // A 200 that isn't Crease's JSON: a Wi-Fi login page, or a body cut off on the way.
+  if (body === null || typeof body !== "object")
+    throw Object.assign(new Error("Crease got an answer it couldn't read."), {
+      status: 0,
+    });
   return body;
 }
+
+// Each answer's shape, checked before it is stored: a wrong one is a failure the next
+// poll retries, never data that breaks the page.
+const dated = (b) => Number.isFinite(b?.asOf);
+const SHAPES = {
+  card: (b) => Array.isArray(b?.innings),
+  squad: (b) => Array.isArray(b?.teams),
+  sched: (b) => dated(b) && Array.isArray(b.india) && Array.isArray(b.failed),
+  tour: (b) =>
+    dated(b) && (b.event === null || Array.isArray(b.event?.fixtures)),
+  table: (b) => dated(b) && Array.isArray(b.groups),
+  team: (b) => dated(b) && Array.isArray(b.ahead) && Array.isArray(b.results),
+  match: (b) => !!b?.header && Array.isArray(b.commentary),
+  ci: (b) => typeof b?.available === "boolean",
+};
 
 // Dates and times in the UI's language (English), shaped by the reader's English
 // variant when they use one; times still follow the 12/24-hour choice and time zone.
@@ -206,11 +226,25 @@ const inIndia = (ts) => new Date(ts).getTimezoneOffset() === IST_OFFSET;
 const startsShort = (ts) =>
   `${dayLabel(ts)}, ${timeFmt.format(ts)} ${zoneOf(ts)}`.trim();
 
-// The full start, plus India's time when the reader's clock is elsewhere.
-const startsLong = (ts) =>
-  inIndia(ts)
-    ? fullFmt.format(ts)
-    : `${fullFmt.format(ts)} (${istFmt.format(ts)} in India)`;
+// The full start, plus India's time when the reader's clock is elsewhere, with India's
+// day when it is another date there.
+const istDay = new Intl.DateTimeFormat(LOCALE, {
+  timeZone: "Asia/Kolkata",
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+});
+const localDay = new Intl.DateTimeFormat(LOCALE, {
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+});
+function startsLong(ts) {
+  if (inIndia(ts)) return fullFmt.format(ts);
+  const day =
+    istDay.format(ts) === localDay.format(ts) ? "" : `${istDay.format(ts)}, `;
+  return `${fullFmt.format(ts)} (${day}${istFmt.format(ts)} in India)`;
+}
 
 // The start on the ground's own clock, when that isn't India's: "8:00 pm" in
 // Christchurch, with a sun, a setting sun or a moon for a day, day-night or night start.
@@ -228,13 +262,18 @@ const PART_WORDS = {
   "day-night": "a day-night start",
   night: "a night start",
 };
+const groundDay = new Intl.DateTimeFormat(LOCALE, {
+  timeZone: "UTC",
+  weekday: "short",
+});
 function venueClock(m, venue = m.venue) {
   const off = venue?.utcOffset;
   if (off == null || off === IST_MINUTES || !m.start) return null;
   const local = m.start + off * 60000;
   const hour = new Date(local).getUTCHours();
+  const otherDay = new Date(local).getUTCDate() !== new Date(m.start).getDate();
   return {
-    time: utcFmt.format(local),
+    time: `${otherDay ? `${groundDay.format(local)} ` : ""}${utcFmt.format(local)}`,
     place: venue.city || venue.ground || "the ground",
     part: hour < 13 ? "day" : hour < 17 ? "day-night" : "night",
   };
@@ -265,11 +304,21 @@ function dayLabel(ts) {
   return dayFmt.format(d);
 }
 
+// "26s", "5 min", "3 h", "2 days": whole units, never rounded up.
+function age(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} h`;
+  const d = Math.floor(h / 24);
+  return `${d} day${d > 1 ? "s" : ""}`;
+}
+
 function ago(ts) {
-  const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
-  if (s < 10) return "just now";
-  if (s < 60) return `${s}s ago`;
-  return `${Math.round(s / 60)} min ago`;
+  const ms = Date.now() - ts;
+  return ms < 10000 ? "just now" : `${age(ms)} ago`;
 }
 
 const score = (i) => `${i.r}${i.w < 10 ? `/${i.w}` : ""}${i.dec ? "d" : ""}`;
@@ -290,8 +339,12 @@ function stateWord(m) {
     return m.format === "TEST"
       ? (m.status.match(/Day \d+/)?.[0] ?? "Live")
       : "Live";
-  return s.replace(/ Break$/i, "");
+  return s.replace(/ Break$/i, " break");
 }
+
+// The second line of a live row's status: the day of a Test, else the format.
+const formatWord = (m) =>
+  m.format === "TEST" ? (m.status.match(/Day \d+/)?.[0] ?? "Test") : m.format;
 
 function loser(m) {
   if (m.phase !== "done") return null;
@@ -303,11 +356,6 @@ function loser(m) {
 // Match is on but no ball is being bowled: stumps, meal breaks, rain.
 const PAUSED = /stumps|lunch|tea|dinner|break|rain|drinks|bad light|delay|wet/i;
 const paused = (m) => m.phase === "live" && PAUSED.test(m.state || "");
-const liveBadge = (m) =>
-  paused(m)
-    ? `<span class="live paused"><i></i>${esc(stateWord(m))}</span>`
-    : '<span class="live"><i></i>Live</span>';
-
 // The tangerine label stuck on a sticker card: live, the pause (Stumps, Lunch), or the countdown.
 function stateSticker(m) {
   if (m.phase === "live")
@@ -437,6 +485,7 @@ function route() {
       history.replaceState(null, "", `#m/${id}/${tab}`);
     return { kind: "match", id, tab };
   }
+  if (/^m(\/|$)/.test(h)) return { kind: "bad", tab: "" };
   if (h === "india/results")
     return { kind: "list", tab: "india", section: "results" };
   if (h && !LIST_TABS.includes(h)) history.replaceState(null, "", "#now");
@@ -446,6 +495,8 @@ function route() {
 // A section a route asks to be shown (#india/results): scrolled to and focused once it
 // has rendered, which may be a poll later.
 let reveal = null;
+// A section the next route should reveal (a series opened from home's card).
+let nextReveal = null;
 function revealSection() {
   if (!reveal) return;
   const el = document.getElementById(reveal);
@@ -462,24 +513,49 @@ function revealSection() {
 let lastRouteKey = "";
 let cameFromList = false;
 let leaving = false; // Back was pressed and the route hasn't changed yet
+// The list a match was opened from: its key, scroll position and the match.
+let returnTo = null;
 
 function onRoute() {
   const r = route();
-  const key = r.kind === "match" ? `m${r.id}` : r.tab;
-  const changed = key !== lastRouteKey;
-  if (r.kind === "match" && lastRouteKey && !lastRouteKey.startsWith("m"))
+  const key =
+    r.kind === "match" ? `m${r.id}` : r.kind === "bad" ? "bad" : r.tab;
+  const prev = lastRouteKey;
+  const changed = key !== prev;
+  if (r.kind === "match" && prev && !prev.startsWith("m")) {
     cameFromList = true;
+    returnTo = { key: prev, y: scrollY, id: r.id };
+  }
   lastRouteKey = key;
   leaving = false;
-  reveal = r.section ?? null;
+  reveal = r.section ?? nextReveal;
+  nextReveal = null;
+  const revealing = !!reveal;
   if (changed) {
     view.innerHTML = "";
     window.scrollTo(0, 0);
   }
   render();
+  if (changed && prev && !revealing) settleFocus(r, key, prev);
   // Another section of the same match polls on the usual cycle; it fetches now only
   // what it has never loaded.
   if (changed || lacksData(r)) refresh();
+}
+
+function settleFocus(r, key, prev) {
+  const back =
+    r.kind === "list" && returnTo?.key === key && prev === `m${returnTo.id}`;
+  if (back) {
+    const { y, id } = returnTo;
+    returnTo = null;
+    scrollTo(0, y);
+    const card = view.querySelector(`a[href^="#m/${id}/"]`);
+    if (card) {
+      card.scrollIntoView({ block: "nearest" });
+      return card.focus({ preventScroll: true });
+    }
+  }
+  (view.querySelector("h1") ?? view).focus({ preventScroll: true });
 }
 
 function lacksData(r) {
@@ -524,9 +600,15 @@ async function poll(force) {
   const r = route();
   S.busy++;
   view.setAttribute("aria-busy", "true");
-  const jobs = r.kind === "list" ? listJobs(r) : matchJobs(r, force);
+  const jobs =
+    r.kind === "list"
+      ? listJobs(r)
+      : r.kind === "match"
+        ? matchJobs(r, force)
+        : [];
   if (!S.list || (alertsOn && r.kind === "match")) jobs.push(loadList());
   await Promise.allSettled(jobs);
+  if (r.kind === "match") settleMissing(r.id);
   if (alertsOn) await checkAlerts(r);
   if (!--S.busy) view.removeAttribute("aria-busy");
   render();
@@ -607,7 +689,8 @@ function expect(ok, body) {
 async function loadList() {
   try {
     const body = await api("/api/matches");
-    S.list = expect(Array.isArray(body?.matches), body);
+    expect(Array.isArray(body?.matches), body);
+    if (!older(S.list, body)) S.list = body;
     S.listErr = null;
   } catch (e) {
     S.listErr = e.message;
@@ -624,8 +707,14 @@ function progress(d) {
 // A live score never steps back; an older answer is set aside, unless two polls in a
 // row bring it (then it is a correction, and it stands).
 const behindCount = new Map();
+// An answer fetched from the source before the one on screen (a stale copy from the
+// CDN, which a forced refresh can get) is set aside: the page never steps back in time.
+const older = (prev, next) =>
+  !!prev?.asOf && !!next?.asOf && next.asOf < prev.asOf;
+
 function keepNewest(id, next) {
   const prev = S.match.get(id);
+  if (older(prev, next)) return;
   const a = progress(prev);
   const b = progress(next);
   const back = next.header.phase === "live" && a != null && b != null && b < a;
@@ -638,21 +727,30 @@ function keepNewest(id, next) {
 async function loadMatch(id) {
   try {
     const body = await api(`/api/match/${id}`);
-    keepNewest(id, expect(!!body?.header, body));
+    keepNewest(id, expect(SHAPES.match(body), body));
     S.matchErr.delete(id);
+    notFound.delete(id);
   } catch (e) {
     S.matchErr.set(id, e.message);
-    // No match and no fixture by that id: stop asking until the reader retries.
-    if (e.status === 404 && !summaryOf(id) && S.list && S.sched)
-      S.missing.add(id);
+    if (e.status === 404) notFound.add(id);
   }
+}
+
+// A match centre that answered 404, and no fixture by that id once the lists have loaded
+// (whichever arrives first): the match doesn't exist. Stop asking until the reader retries.
+const notFound = new Set();
+function settleMissing(id) {
+  if (notFound.has(id) && !summaryOf(id) && S.list && (S.sched || S.schedErr))
+    S.missing.add(id);
 }
 
 // Failures are kept apart from data, so a failed load never stands in for the data
 // and the next poll tries again.
 async function loadCard(id) {
   try {
-    S.card.set(id, await api(`/api/match/${id}/scorecard`));
+    const b = await api(`/api/match/${id}/scorecard`);
+    const card = expect(SHAPES.card(b), b);
+    if (!older(S.card.get(id), card)) S.card.set(id, card);
     S.cardErr.delete(id);
   } catch (e) {
     S.cardErr.set(id, e.message);
@@ -661,7 +759,8 @@ async function loadCard(id) {
 
 async function loadSquad(id) {
   try {
-    S.squad.set(id, await api(`/api/match/${id}/squads`));
+    const sq = await api(`/api/match/${id}/squads`);
+    S.squad.set(id, expect(SHAPES.squad(sq), sq));
     S.squadErr.delete(id);
   } catch (e) {
     S.squadErr.set(id, e.message);
@@ -670,7 +769,8 @@ async function loadSquad(id) {
 
 async function loadCi(id) {
   try {
-    S.ci.set(id, await api(`/api/match/${id}/cricinfo`));
+    const ci = await api(`/api/match/${id}/cricinfo`);
+    S.ci.set(id, expect(SHAPES.ci(ci), ci));
   } catch (e) {
     // Cricinfo is an enrichment: a failure leaves the Cricbuzz view intact, and the
     // lookup is retried a minute later (matchJobs) rather than given up for good.
@@ -722,7 +822,8 @@ const schedStale = () => !S.sched || Date.now() - S.sched.asOf > 30 * 60000;
 
 async function loadSched() {
   try {
-    S.sched = await api("/api/schedule");
+    const b = await api("/api/schedule");
+    S.sched = expect(SHAPES.sched(b), b);
     S.schedErr = null;
   } catch (e) {
     S.schedErr = e.message;
@@ -735,7 +836,8 @@ const tourStale = () => !S.tour || Date.now() - S.tour.asOf > 30 * 60000;
 
 async function loadTour() {
   try {
-    S.tour = await api("/api/tournament");
+    const b = await api("/api/tournament");
+    S.tour = expect(SHAPES.tour(b), b);
     S.tourErr = null;
   } catch (e) {
     S.tourErr = e.message;
@@ -755,7 +857,8 @@ const tableDue = (id) => {
 
 async function loadTable(id) {
   try {
-    S.tables.set(id, await api(`/api/series/${id}/table`));
+    const b = await api(`/api/series/${id}/table`);
+    S.tables.set(id, expect(SHAPES.table(b), b));
     S.tableErr.delete(id);
   } catch (e) {
     S.tableErr.set(id, e.message);
@@ -769,7 +872,8 @@ const teamDue = (id) =>
 
 async function loadTeam(id) {
   try {
-    S.team.set(id, await api(`/api/team/${id}`));
+    const b = await api(`/api/team/${id}`);
+    S.team.set(id, expect(SHAPES.team(b), b));
     S.teamErr.delete(id);
   } catch (e) {
     S.teamErr.set(id, e.message);
@@ -903,19 +1007,43 @@ function setAlerts(on, save = true) {
 
 // A visible message (the toast is a status region, so screen readers hear it too).
 let toastTimer = 0;
-function say(text) {
+function say(text, action = null) {
   const t = $("#toast");
   t.textContent = text;
+  if (action) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "toast-act";
+    b.textContent = action.label;
+    b.addEventListener("click", () => {
+      t.hidden = true;
+      action.run();
+    });
+    t.append(" ", b);
+  }
   t.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (t.hidden = true), 5000);
+  toastTimer = setTimeout(() => (t.hidden = true), action ? 8000 : 5000);
 }
 
 const BLOCKED =
   "Notifications are blocked for this site. Allow them in your browser's site settings, then try again.";
 
+// Whose matches alert: "India and IPL", or "India, IPL and New Zealand".
+const alertsCover = () =>
+  fav ? `India, IPL and ${fav.name}` : "India and IPL";
+
 function showAlertsSheet() {
   const blocked = Notification.permission === "denied";
+  $("#alertsWho").textContent = alertsCover();
+  // Opened on a match alerts don't cover: say so, before anyone turns them on for it.
+  const r = route();
+  const m =
+    r.kind === "match" ? (S.match.get(r.id)?.header ?? summaryOf(r.id)) : null;
+  const note = $("#alertsNote");
+  note.hidden = !m || m.tags.length > 0 || isFav(m);
+  if (m)
+    note.textContent = `${m.t1.short} v ${m.t2.short} isn't included: alerts cover ${alertsCover()} matches. Follow a team in Settings to add its matches.`;
   $("#alertsStatus").textContent = alertsOn
     ? "Alerts are on."
     : blocked
@@ -935,9 +1063,6 @@ async function toggleAlerts() {
   try {
     if (alertsOn) {
       setAlerts(false);
-      // The worker exists only to show alerts; with them off it goes.
-      const reg = await navigator.serviceWorker.getRegistration();
-      await reg?.unregister();
       return say("Alerts off.");
     }
     const permission =
@@ -949,10 +1074,11 @@ async function toggleAlerts() {
       return say(BLOCKED);
     }
     await navigator.serviceWorker.register("/sw.js");
+    await navigator.serviceWorker.ready;
     alertState.clear();
     setAlerts(true);
     say(
-      "Alerts on for India and IPL matches, while Crease is open. Turn them off from the bell.",
+      `Alerts on for ${alertsCover()} matches, while Crease is open. Turn them off from the bell.`,
     );
     refresh(true);
   } finally {
@@ -978,7 +1104,7 @@ function rowScore(m, inns, isBat) {
   const last = inns.at(-1);
   const prev =
     inns.length > 1 ? `${inns.slice(0, -1).map(score).join(" & ")} & ` : "";
-  const ov = isBat ? `<small>${esc(last.o)}</small>` : "";
+  const ov = isBat ? `<small>${esc(oversTxt(last.o))}</small>` : "";
   // Spaces between the parts let a long two-innings score wrap.
   return `${esc(prev)}${esc(score(last))} ${ov}`;
 }
@@ -988,17 +1114,28 @@ function side(m, t, inns) {
   const cls = ["side", isBat ? "bat" : "", loser(m) === t.id ? "lose" : ""]
     .join(" ")
     .trim();
-  return `<div class="${cls}">${flag(t)}<span class="nm">${esc(t.name)}${isBat ? '<span class="vh"> (batting)</span>' : ""}</span><span class="sc">${rowScore(m, inns, isBat)}</span></div>`;
+  // The batting dot is glued to the last word, so it never wraps onto a line alone.
+  const name = isBat
+    ? esc(t.name).replace(/(\S+)$/, '<span class="nw">$1</span>')
+    : esc(t.name);
+  return `<div class="${cls}">${flag(t)}<span class="nm">${name}${isBat ? '<span class="vh"> (batting)</span>' : ""}</span><span class="sc">${rowScore(m, inns, isBat)}</span></div>`;
 }
 
 function statusTrack(m) {
   if (m.phase === "live")
     return paused(m)
-      ? `${liveBadge(m)}<span>${esc(m.format)}</span>`
-      : `<span class="live"><i></i>Live</span><span>${esc(stateWord(m))}</span>`;
+      ? `<span class="live paused"><i></i>${esc(stateWord(m).replace(/^Innings b/i, "B"))}</span><span>${esc(m.format)}</span>`
+      : `<span class="live"><i></i>Live</span><span>${esc(formatWord(m))}</span>`;
   if (m.phase === "upcoming" && m.start)
     return `<span class="num">${esc(timeFmt.format(m.start))}</span><span>${esc(dayLabel(m.start))}</span>`;
-  return `<span>${esc(m.state === "Complete" ? "Result" : m.state)}</span><span>${m.start ? esc(dayLabel(m.start)) : ""}</span>`;
+  // A finished bilateral game says which it was ("4th T20I"); others say "Result".
+  const what =
+    m.state === "Complete"
+      ? BILATERAL.test(m.desc)
+        ? m.desc
+        : "Result"
+      : m.state;
+  return `<span>${esc(what)}</span><span>${m.start ? esc(dayLabel(m.start)) : ""}</span>`;
 }
 
 function row(m) {
@@ -1040,9 +1177,14 @@ function fixtureRow(m, { next = false, teams = false } = {}) {
   const label = [m.start ? fullFmt.format(m.start) : "", m.desc, city]
     .filter(Boolean)
     .join(", ");
-  return `<a class="mr fxr${next ? " is-next" : ""}" data-k="r${m.id}" href="#m/${m.id}/info" aria-label="${esc(label)}">
+  // A sun or moon says whether it's a day or night game at the ground.
+  const c = venueClock(m);
+  const part = c
+    ? `<span class="lt" title="${esc(`${c.time} in ${c.place}, ${PART_WORDS[c.part]}`)}">${PART_ICON[c.part]}</span>`
+    : "";
+  return `<a class="mr fxr${next ? " is-next" : ""}" data-k="r${m.id}" href="#m/${m.id}/info" aria-label="${esc(c ? `${label}; ${c.time} in ${c.place}` : label)}">
     ${calTile(m.start)}
-    <div class="fxm"><div class="nm">${esc([m.desc, city].filter(Boolean).join(" · "))}</div><div class="why">${esc(detail)}</div></div>
+    <div class="fxm"><div class="nm">${esc([m.desc, city].filter(Boolean).join(" · "))}</div><div class="why">${part}${esc(detail)}</div></div>
     ${next && m.start && m.start - Date.now() < WEEK ? `<span class="chip-next">${esc(countdown(m.start))}</span>` : ""}
   </a>`;
 }
@@ -1072,12 +1214,19 @@ function formatName(format, fixtures) {
   return `${f}${n > 1 ? "s" : ""} · ${n}`;
 }
 
+const favTag = (m) =>
+  isFav(m)
+    ? '<span class="tag fav"><i aria-hidden="true">★</i>Your team</span>'
+    : "";
+
 function tags(m) {
-  return m.tags
-    .map(
-      (t) => `<span class="tag ${t}">${t === "ipl" ? "IPL" : "India"}</span>`,
-    )
-    .join("");
+  return (
+    m.tags
+      .map(
+        (t) => `<span class="tag ${t}">${t === "ipl" ? "IPL" : "India"}</span>`,
+      )
+      .join("") + favTag(m)
+  );
 }
 
 function heroScore(m, inns, isBat) {
@@ -1095,8 +1244,11 @@ function heroScore(m, inns, isBat) {
   return `${prev} ${esc(score(last))} ${ov}`;
 }
 
+const TBC = /^(TBC|TBA)\b/i;
 function hrow(m, t, inns) {
   const isBat = m.phase === "live" && m.batting === t.id;
+  if (TBC.test(t.name))
+    return `<div class="hrow tbc"><span class="flag lg mono" aria-hidden="true">?</span><span class="nm">Opponent to be confirmed</span><span class="sc"></span></div>`;
   return `<div class="hrow${loser(m) === t.id ? " lose" : ""}">${flag(t, true)}<span class="nm">${esc(t.name)}</span><span class="sc">${heroScore(m, inns, isBat)}</span></div>`;
 }
 
@@ -1148,30 +1300,41 @@ function headingOf(tab) {
   if (tab === "wc") return wcLabel();
   if (tab !== "now") return TITLES[tab];
   if (!S.list) return "";
-  return liveIn("now").length ? TITLES.now : "Up next";
+  const on = liveIn("now");
+  if (!on.length) return "Up next";
+  return on.some((m) => !paused(m)) ? TITLES.now : "Now";
+}
+
+// The way to All live from an idle page: matches in play, or else matches at a break
+// or stumps, which aren't "live" to anyone reading quickly.
+function elsewhere() {
+  const on = pick("all").filter((m) => m.phase === "live" && !m.tags.length);
+  const inPlay = on.filter((m) => !paused(m)).length;
+  const n = inPlay || on.length;
+  if (!n) return "";
+  const what = inPlay ? "in play" : "at a break or stumps";
+  return `<a class="link" href="#all">${n} other match${n > 1 ? "es" : ""} ${what} →</a>`;
 }
 
 function pageHead(tab, live) {
-  const title = headingOf(tab);
+  const title = headingOf(tab) || (S.listErr ? "Now" : "");
   if (!title)
-    return `<div class="ph" data-k="ph"><h1><span class="skel line" aria-hidden="true"></span><span class="vh">Loading</span></h1><p>${esc(SUBS[tab])}</p></div>`;
-  const others = pick("all").filter(
-    (m) => m.phase === "live" && !m.tags.length,
-  ).length;
+    return `<div class="ph" data-k="ph"><h1 tabindex="-1"><span class="skel line" aria-hidden="true"></span><span class="vh">Loading</span></h1><p>${esc(SUBS[tab])}</p></div>`;
+  const others = elsewhere();
   const sub =
     S.list && !live.length
-      ? `${esc(IDLE[tab])}${others ? ` <a class="link" href="#all">${others} other match${others > 1 ? "es" : ""} live →</a>` : ""}`
+      ? `${esc(IDLE[tab])}${others ? ` ${others}` : ""}`
       : esc(
           tab === "now" && fav
             ? `India, IPL and ${fav.name}, ball by ball`
             : SUBS[tab],
         );
-  return `<div class="ph" data-k="ph"><h1>${title}</h1><p>${sub}</p></div>`;
+  return `<div class="ph" data-k="ph"><h1 tabindex="-1">${title}</h1><p>${sub}</p></div>`;
 }
 
 const liveSection = (live) =>
   live.length
-    ? `<div class="sec" data-k="lh"><span>Live</span><small>${live.length} match${live.length > 1 ? "es" : ""}</small></div>${live.map(hero).join("")}`
+    ? `<h2 class="sec" data-k="lh"><span>${live.some((m) => !paused(m)) ? "Live" : "In progress"}</span><small>${live.length} match${live.length > 1 ? "es" : ""}</small></h2>${live.map(hero).join("")}`
     : "";
 
 // Home is only what matters now: the live India or IPL match, else the soonest
@@ -1194,7 +1357,7 @@ function homeView() {
         .filter(Boolean)
         .sort(byStartAsc)[0];
   if (next)
-    html += `<div class="sec" data-k="nh"><span>Next match</span></div>${nextCard(next)}`;
+    html += `<h2 class="sec" data-k="nh"><span>Next match</span></h2>${nextCard(next)}`;
   else if (!live.some((m) => m.tags.length))
     html +=
       !S.sched && !S.schedErr
@@ -1211,10 +1374,10 @@ function homeView() {
 
 // Nothing on: the next India or IPL match as a matchday poster, then the rest of home.
 function upNext(next) {
-  const others = pick("all").filter((m) => m.phase === "live").length;
-  return `<div class="ph sm" data-k="ph"><h1>${headingOf("now")}</h1></div>
+  const others = elsewhere();
+  return `<div class="ph sm" data-k="ph"><h1 tabindex="-1">${headingOf("now")}</h1></div>
     ${poster(next)}
-    <p class="idle" data-k="idle">Nothing live for India or IPL${others ? ` · <a class="link" href="#all">${others} other match${others > 1 ? "es" : ""} live →</a>` : ""}</p>
+    <p class="idle" data-k="idle">Nothing live for India or IPL${others ? ` · ${others}` : ""}</p>
     ${favCard([next])}${currentSeries(next)}${foot()}`;
 }
 
@@ -1246,9 +1409,9 @@ function poster(m) {
     ? [m.venue.ground, m.venue.city].filter(Boolean).join(", ")
     : "";
   return `<a class="poster" data-k="p${m.id}" href="#m/${m.id}/info" style="--pl:${left};--pr:${right}">
-    <div class="top">${esc(`${label} · ${m.desc}`)}</div>
+    <div class="top">${esc(`${label} · ${m.desc}`)}${favTag(m)}</div>
     <div class="vs">${side(m.t1, "l")}<span class="v">vs</span>${side(m.t2, "r")}</div>
-    ${cd ? `<div class="cd">${esc(cd)}</div>${ahead ? '<div class="cdl">to the first ball</div>' : ""}` : ""}
+    ${cd ? `<div class="cd">${esc(cd)}</div>${ahead ? '<div class="cdl">until play starts</div>' : ""}` : ""}
     <div class="pills">${m.start ? `<span class="when">${esc(startsShort(m.start))}</span>` : ""}${c ? `<span>${PART_ICON[c.part]}${esc(`${c.time} in ${c.place}`)}</span>` : where ? `<span>${esc(where)}</span>` : ""}</div>
     <div class="ser">${esc(m.series)}</div>
   </a>`;
@@ -1257,11 +1420,18 @@ function poster(m) {
 // The followed team, unless the page already shows its match: its next fixture, or
 // between IPL seasons an IPL side's last season and the next one's start.
 function favCard(shown) {
-  if (!fav || shown.some(isFav)) return "";
-  const head = `<div class="sec" data-k="fh"><span>Your team</span></div>`;
-  const ahead = S.team.get(fav.id)?.ahead?.[0];
+  if (!fav) return "";
+  const head = `<h2 class="sec" data-k="fh"><span>Your team</span></h2>`;
+  const ahead = S.team
+    .get(fav.id)
+    ?.ahead?.find((m) => !shown.some((x) => String(x.id) === String(m.id)));
+  // Already on the page (live, or India's next match): only its next fixture adds.
+  if (shown.some(isFav))
+    return ahead
+      ? `<h2 class="sec" data-k="fh"><span>${shown.some((m) => isFav(m) && m.phase === "live") ? "Your team next" : "Your team, after that"}</span></h2>${nextCard(ahead, fav.short || fav.name)}`
+      : "";
   if (ahead) return head + nextCard(ahead, fav.short || fav.name);
-  if (fav.ipl) return head + iplOffCard(fav);
+  if (fav.ipl) return head + iplOffCard(fav, "#ipl");
   if (!S.team.has(fav.id))
     return S.teamErr.has(fav.id)
       ? head +
@@ -1290,9 +1460,9 @@ function indiaView() {
   if (!live.length && fixtures.length) html += nextCard(fixtures[0]);
   html += indiaResultsSection();
   if (fixtures.length)
-    html += `<div class="sec" data-k="sh"><span>Series ahead</span></div><div class="list" data-k="sl">${groupSeries(fixtures).slice(0, 12).map(seriesRow).join("")}</div>`;
+    html += `<h2 class="sec" data-k="sh"><span>Series ahead</span></h2><div class="list" data-k="sl">${groupSeries(fixtures).slice(0, 12).map(seriesRow).join("")}</div>`;
   else if (!S.sched && !S.schedErr) html += skeleton(1);
-  else if (!live.length)
+  else if (!live.length && !S.schedErr)
     html += empty(
       "No India fixtures listed",
       "Cricbuzz hasn't published India's next matches yet.",
@@ -1304,7 +1474,7 @@ function indiaView() {
 // full schedule and results.
 function tournamentView() {
   const ev = S.tour?.event;
-  let html = `<div class="ph" data-k="ph"><h1>${esc(wcLabel())}</h1><p>${esc(ev?.name ?? "ICC events India play in")}</p></div>`;
+  let html = `<div class="ph" data-k="ph"><h1 tabindex="-1">${esc(wcLabel())}</h1><p>${esc(ev?.name ?? "ICC events India play in")}</p></div>`;
   if (!S.tour)
     return (
       html + (S.tourErr ? errorCard(S.tourErr, "the tournament") : skeleton())
@@ -1335,7 +1505,7 @@ function tournamentView() {
     (m) => m.tags.includes("india") && m.phase !== "done",
   );
   if (india.length)
-    html += `<div class="sec" data-k="wih"><span>India's matches</span></div><div class="list" data-k="wil">${fixtureList(india)}</div>`;
+    html += `<h2 class="sec" data-k="wih"><span>India's matches</span></h2><div class="list" data-k="wil">${fixtureList(india)}</div>`;
   html += tableSection(
     ev.id,
     "Groups",
@@ -1350,7 +1520,7 @@ function tournamentView() {
   }
   const done = all.filter((m) => m.phase === "done").sort(byStartDesc);
   if (done.length)
-    html += `<div class="sec" data-k="wrh"><span>Results</span></div><div class="list" data-k="wrl">${done.map(row).join("")}</div>`;
+    html += `<h2 class="sec" data-k="wrh"><span>Results</span></h2><div class="list" data-k="wrl">${done.map(row).join("")}</div>`;
   return html + foot();
 }
 
@@ -1382,7 +1552,7 @@ function iplView() {
     if (!live.length && fixtures[0]) html += nextCard(fixtures[0]);
     html += tableSection(p.season.id, "Points table");
     if (fixtures.length > 1)
-      html += `<div class="sec" data-k="if"><span>Fixtures</span><small>${fixtures.length} to play</small></div><div class="list" data-k="il">${fixtures
+      html += `<h2 class="sec" data-k="if"><span>Fixtures</span><small>${fixtures.length} to play</small></h2><div class="list" data-k="il">${fixtures
         .slice(live.length ? 0 : 1, 11)
         .map(row)
         .join("")}</div>`;
@@ -1394,11 +1564,11 @@ function iplView() {
       .sort(byStartDesc)
       .slice(0, 10);
     if (done.length)
-      html += `<div class="sec" data-k="rh"><span>Results</span></div><div class="list" data-k="rl">${done.map(row).join("")}</div>`;
+      html += `<h2 class="sec" data-k="rh"><span>Results</span></h2><div class="list" data-k="rl">${done.map(row).join("")}</div>`;
   } else {
     html += seasonCard();
     if (fav?.ipl)
-      html += `<div class="sec" data-k="fh"><span>Your team</span></div>${iplOffCard(fav)}`;
+      html += `<h2 class="sec" data-k="fh"><span>Your team</span></h2>${iplOffCard(fav)}<button class="link unfollow" type="button" data-k="unf" data-act="follow" data-team="${esc(JSON.stringify(fav))}">Stop following ${esc(fav.short || fav.name)}</button>`;
     if (p.last) {
       html += champion(p.last);
       html += tableSection(p.last.id, `${p.last.name} · final table`);
@@ -1418,7 +1588,7 @@ function champion(season) {
   const beat = [f.t1, f.t2].find((t) => t.id === lost);
   // "Royal Challengers Bengaluru won by 5 wickets" → "beat Gujarat Titans by 5 wickets"
   const margin = f.status.match(/\bwon (by .+)$/i)?.[1] ?? "";
-  return `<div class="sec" data-k="ch"><span>Last season</span></div>
+  return `<h2 class="sec" data-k="ch"><span>Last season</span></h2>
     <a class="card champ" data-k="champ" href="#m/${f.id}/info">
       ${flag(won, true)}<div><div class="nm">${esc(won.name)}</div><div class="sub">${esc(`Champions ${year}`.trim())} · beat ${esc(beat.name)} in the final${margin ? ` ${esc(margin)}` : ""}</div></div>
       <svg class="cup" viewBox="0 0 24 24" aria-hidden="true"><path class="gold" d="M8 4h8v4a4 4 0 0 1-8 0z"/><path d="M8 5.5H5a3 3 0 0 0 3 4M16 5.5h3a3 3 0 0 1-3 4"/><path d="M12 12v4M8.5 20h7"/><path class="gold" d="M10 16h4v4h-4z"/></svg>
@@ -1426,7 +1596,19 @@ function champion(season) {
 }
 
 // An IPL side between seasons: where it finished last season, and when the next starts.
-function iplOffCard(team) {
+function iplOffCard(team, href = "") {
+  return favShell(
+    `${flag(team, true)}<div><div class="nm">${esc(team.name)}</div>${offSeason(
+      team,
+    )
+      .map((l) => `<div class="sub">${esc(l)}</div>`)
+      .join("")}</div>`,
+    href,
+  );
+}
+
+// "2026: 8th in the table, 6 won, 8 lost" and "IPL 2027 starts 10 Mar".
+function offSeason(team) {
   const last = S.sched?.iplLast;
   const t = last && S.tables.get(last.id);
   const rows = t?.groups?.[0]?.teams ?? [];
@@ -1439,7 +1621,7 @@ function iplOffCard(team) {
     [last.final.t1.id, last.final.t2.id].some(
       (id) => String(id) === String(team.id),
     );
-  const lines = [
+  return [
     i >= 0
       ? `${last.name.match(/\d{4}/)?.[0] ?? "Last season"}: ${champ ? "champions, " : ""}${ordinal(i + 1)} in the table, ${rows[i].won} won, ${rows[i].lost} lost`
       : "",
@@ -1447,8 +1629,13 @@ function iplOffCard(team) {
       ? `${S.sched.ipl.name.replace(/Indian Premier League/i, "IPL")} starts ${shortDate.format(S.sched.ipl.start)}`
       : "",
   ].filter(Boolean);
-  return `<div class="card fav" data-k="favoff">${flag(team, true)}<div><div class="nm">${esc(team.name)}</div>${lines.map((l) => `<div class="sub">${esc(l)}</div>`).join("")}</div></div>`;
 }
+
+// The followed side's card: a link to its tab where one is given.
+const favShell = (inner, href) =>
+  href
+    ? `<a class="card fav" data-k="favoff" href="${href}">${inner}<svg class="chev go" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></a>`
+    : `<div class="card fav" data-k="favoff">${inner}</div>`;
 
 // A competition's points table: one card per group, the qualifying places above a
 // line, the followed team marked. Tapping a team follows it.
@@ -1456,7 +1643,7 @@ function tableSection(id, title, keep = () => true) {
   const t = S.tables.get(id);
   if (!t)
     return S.tableErr.has(id)
-      ? `<div class="sec" data-k="pth"><span>${esc(title)}</span></div>${empty("Couldn't load the table", `${sentence(S.tableErr.get(id))} Crease tries again soon.`)}`
+      ? `<h2 class="sec" data-k="pth"><span>${esc(title)}</span></h2>${empty("Couldn't load the table", `${sentence(S.tableErr.get(id))} Crease tries again soon.`)}`
       : skeleton(1);
   // Following a team from here remembers whether it is an IPL side.
   const ipl = [S.sched?.ipl?.id, S.sched?.iplLast?.id].includes(id);
@@ -1466,7 +1653,7 @@ function tableSection(id, title, keep = () => true) {
       const name = groups.length > 1 ? g.name : title;
       const rows = g.teams
         .map((x, i) => {
-          const me = fav && String(fav.id) === String(x.id);
+          const me = !!fav && String(fav.id) === String(x.id);
           const cls = [
             i < g.qualify ? "q" : "",
             i === g.qualify - 1 ? "cut" : "",
@@ -1474,12 +1661,20 @@ function tableSection(id, title, keep = () => true) {
           ]
             .filter(Boolean)
             .join(" ");
-          return `<tr${cls ? ` class="${cls}"` : ""}><td class="n pos">${i + 1}</td><td>${/^TBC|\(/.test(x.name) ? `<span class="tm">${flag(x)}<span class="who">${esc(x.short || x.name)}</span></span>` : `<button class="tm" type="button" data-act="follow" data-team="${esc(JSON.stringify({ id: x.id, name: x.name, short: x.short, flag: x.flag, ipl }))}" aria-pressed="${me}" aria-label="${esc(`${me ? "Following" : "Follow"} ${x.name}`)}">${flag(x)}<span class="who">${esc(x.short)}</span><svg class="star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg></button>`}${x.form.length ? `<span class="form" title="Last ${x.form.length}, latest first">${x.form.map((f) => `<i class="${f}">${f}</i>`).join("")}</span>` : ""}</td><td class="n">${x.played}</td><td class="n">${x.won}</td><td class="n">${x.lost}</td><td class="n">${x.nr + x.tied}</td><td class="n">${esc(x.nrr)}</td><td class="n hi">${x.points}</td></tr>`;
+          // The team is a label; only the star beside it follows (a tap on the name
+          // must not change the reader's team).
+          const tbc = /^TBC|\(/.test(x.name);
+          // India is always on Now: nothing to follow.
+          const star =
+            tbc || INDIA.test(x.name)
+              ? ""
+              : `<button class="star-btn" type="button" data-act="follow" data-team="${esc(JSON.stringify({ id: x.id, name: x.name, short: x.short, flag: x.flag, ipl }))}" aria-pressed="${me}" aria-label="${esc(`Follow ${x.short ? `${x.short} (${x.name})` : x.name}`)}"><svg class="star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg></button>`;
+          return `<tr${cls ? ` class="${cls}"` : ""}><td class="n pos">${i + 1}</td><td><span class="tm">${flag(x)}<span class="who">${esc(tbc ? x.short || x.name : x.short)}</span>${star}</span>${x.form.length ? `<span class="form"><span class="vh">Last ${x.form.length} results, latest first: </span>${x.form.map((f) => `<i class="${f}">${f}</i>`).join("")}</span>` : ""}</td><td class="n">${x.played}</td><td class="n">${x.won}</td><td class="n">${x.lost}</td><td class="n">${x.nr + x.tied}</td><td class="n">${esc(x.nrr)}</td><td class="n hi">${x.points}</td></tr>`;
         })
         .join("");
-      return `<div class="sec" data-k="pth${gi}"><span>${esc(name)}</span>${g.qualify ? `<small>Top ${g.qualify} go through</small>` : ""}</div>
+      return `<h2 class="sec" data-k="pth${gi}"><span>${esc(name)}</span>${g.qualify ? `<small>Top ${g.qualify} qualify</small>` : ""}</h2>
         <div class="card flush" data-k="pt${gi}"><table class="tbl pts"><thead><tr><th scope="col"><abbr title="Position">#</abbr></th><th scope="col">Team</th>${["P", "W", "L", "NR", "NRR", "Pts"].map((c) => `<th scope="col"><abbr title="${esc(TABLE_COLS[c])}">${c}</abbr></th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>
-        <p class="key" data-k="ptk"><b>Key</b> P played · W won · L lost · NR no result or tie · NRR net run rate · Pts points · ★ follow a team${g.qualify ? " · the line marks the qualifying places" : ""}</p></div>`;
+        <p class="key" data-k="ptk"><b>Key</b> P played · W won · L lost · NR no result or tie · NRR net run rate · Pts points${g.teams.some((x) => x.form.length) ? " · W/L under a team: its last results, latest first" : ""}${g.teams.some((x) => !/^TBC|\(/.test(x.name) && !INDIA.test(x.name)) ? " · ★ follow a team" : ""}${g.qualify ? " · the line marks the qualifying places" : ""}</p></div>`;
     })
     .join("");
 }
@@ -1496,10 +1691,12 @@ const TABLE_COLS = {
 // All live order: India and IPL first, then internationals, leagues, domestic.
 const TYPE_RANK = { International: 1, League: 2, Domestic: 3 };
 const groupRank = (list) =>
-  list.some((m) => m.tags.length) ? 0 : (TYPE_RANK[list[0].type] ?? 4);
+  list.some((m) => m.tags.length)
+    ? 0
+    : (TYPE_RANK[list[0].type] ?? 4) + (list.some((m) => !paused(m)) ? 0 : 10);
 
 function allLiveView() {
-  let html = `<div class="ph" data-k="ph"><h1>${TITLES.all}</h1><p>${SUBS.all}</p></div>`;
+  let html = `<div class="ph" data-k="ph"><h1 tabindex="-1">${TITLES.all}</h1><p>${SUBS.all}</p></div>`;
   if (!S.list) return html + (S.listErr ? errorCard(S.listErr) : skeleton());
   const live = pick("all").filter((m) => m.phase === "live");
   if (!live.length)
@@ -1513,7 +1710,7 @@ function allLiveView() {
     (a, b) => groupRank(a[1]) - groupRank(b[1]),
   );
   for (const [series, list] of ordered)
-    html += `<div class="sec"><span>${esc(series)}</span></div><div class="list">${list.map(row).join("")}</div>`;
+    html += `<h2 class="sec"><span>${esc(series)}</span></h2><div class="list">${list.map(row).join("")}</div>`;
   return html + foot();
 }
 
@@ -1538,10 +1735,7 @@ function seasonCard() {
   if (!season) {
     if (!S.sched && !S.schedErr) return skeleton(1);
     if (S.schedErr || S.sched.failed.includes("ipl"))
-      return empty(
-        "Couldn't load the IPL calendar",
-        "Cricbuzz didn't answer. Crease tries again every half hour.",
-      );
+      return empty("Couldn't load the IPL calendar", schedFailure());
     return empty(
       "No IPL season listed",
       "The next season appears here once Cricbuzz lists it.",
@@ -1551,7 +1745,7 @@ function seasonCard() {
   return `<div class="card season" data-k="season">
       <div class="meta"><span class="tag ipl">IPL</span><span>${esc(season.name)}</span></div>
       ${starts ? `<div class="when"><span class="cd">${esc(countdown(season.start, false))}</span><span>to go</span></div>` : ""}
-      <div class="kv" style="border:0;padding:8px 0 0"><span class="lbl">Season window</span>${esc(dateRange(season.start, season.end))} <span class="dim">(as listed by Cricbuzz)</span></div>
+      <div class="kv" style="border:0;padding:8px 0 0"><span class="lbl">Season window</span>${esc(dateRange(season.start, season.end))} <span class="dim">(dates may change)</span></div>
       <div class="kv" style="border:0;padding:8px 0 0"><span class="lbl">Fixtures</span>Not announced yet. They appear here as soon as Cricbuzz publishes them.</div>
     </div>`;
 }
@@ -1577,7 +1771,9 @@ function countdown(ts, prefix = true) {
 
 // "3rd T20I" already names its format; "Group C" does not.
 const matchLabel = (m) => {
-  const f = FORMAT_LABEL[m.format] ?? m.format;
+  const league =
+    m.tags?.includes("ipl") || (m.type && m.type !== "International");
+  const f = league ? m.format : (FORMAT_LABEL[m.format] ?? m.format);
   return f && !new RegExp(`\\b${f}`, "i").test(m.desc)
     ? `${f} · ${m.desc}`
     : m.desc;
@@ -1614,13 +1810,14 @@ function nextCard(m, label = "") {
     : m.tags.includes("india")
       ? `<span class="tag india">${esc(sideOf(m))}</span>`
       : `<span class="tag">${esc(label || m.series)}</span>`;
+  const mine = label ? "" : favTag(m);
   const where = m.venue
     ? [m.venue.ground, m.venue.city].filter(Boolean).join(", ")
     : "";
   const when = m.start ? startsShort(m.start) : "";
   return `<a class="hero next" data-k="n${m.id}" href="#m/${m.id}/info">
     ${stateSticker(m)}
-    <div class="meta">${tag}<span>${esc(matchLabel(m))}</span></div>
+    <div class="meta">${tag}${mine}<span>${esc(matchLabel(m))}</span></div>
     <div class="rows">${hrow(m, m.t1, [])}${hrow(m, m.t2, [])}</div>
     <div class="when"><span>${esc([when, where].filter(Boolean).join(" · "))}</span></div>
     ${venueTime(m)}
@@ -1736,8 +1933,11 @@ function standing(r) {
 // marked so it can be coloured.
 function standingShort(r) {
   const c = countFormat(r);
+  // Level sides say so in words: "drawn 2–2" once the format is over, else "level 1–1".
   const score =
-    c.won || c.lost ? `${c.leader ? `${c.leader} ` : ""}${c.hi}–${c.lo}` : "";
+    c.won || c.lost
+      ? `${c.leader ? `${c.leader} ` : c.over ? "drawn " : "level "}${c.hi}–${c.lo}`
+      : "";
   const text = [
     score,
     c.draw ? `${c.draw} draw${c.draw > 1 ? "s" : ""}` : "",
@@ -1817,14 +2017,14 @@ function currentSeries(focus) {
   const latest = played.at(-1);
   const record = standings(all);
   const tab = focus.tags.includes("ipl") ? "ipl" : "india";
-  return `<div class="sec" data-k="csh"><span>This series</span><small>${played.length} of ${all.length} played</small></div>
-    <div class="card series-now" data-k="cs">
+  return `<h2 class="sec" data-k="csh"><span>This series</span><small>${played.length} of ${all.length} played</small></h2>
+    <a class="card series-now" data-k="cs" href="#${tab === "india" ? "india" : "ipl"}"${tab === "india" ? ` data-open-series="${esc(String(focus.seriesId ?? focus.series))}"` : ""}>
       <div class="nm">${esc(focus.series)}</div>
       <div class="sub">${esc(dateRange(all[0].start, all.at(-1).start))} · ${esc(composition(all))}${record ? ` · ${esc(record)}` : ""}</div>
       ${resultChips(all)}
       ${latest ? `<div class="latest"><span class="lbl">Latest</span>${esc(`${latest.desc}: ${latest.status}`)}</div>` : ""}
-    </div>
-    ${ahead.length ? `<div class="sec" data-k="cah"><span>Then</span></div><div class="list" data-k="csl">${ahead.map((m) => fixtureRow(m)).join("")}</div>` : ""}
+    </a>
+    ${ahead.length ? `<h2 class="sec" data-k="cah"><span>Then</span></h2><div class="list" data-k="csl">${ahead.map((m) => fixtureRow(m)).join("")}</div>` : ""}
     <a class="to-tab" data-k="cslink" href="#${tab === "india" ? "india/results" : tab}">${tab === "ipl" ? "All IPL fixtures and results" : "India's results and every series ahead"} →</a>`;
 }
 
@@ -1841,16 +2041,19 @@ function indiaResults() {
   return all.length || S.sched?.indiaResults ? all : null;
 }
 
+// Why the schedule is missing: the request failed (retried on the next refresh), or
+// Cricbuzz left out one part (asked again in half an hour).
+const schedFailure = () =>
+  S.schedErr
+    ? `${sentence(S.schedErr)} Crease tries again with the next refresh.`
+    : "Cricbuzz didn't answer. Crease tries again every half hour.";
+
 function indiaResultsSection() {
   if (!S.sched && !S.schedErr) return skeleton(1);
   const results = indiaResults();
-  if (!results)
-    return empty(
-      "Couldn't load India's results",
-      "Cricbuzz didn't answer. Crease tries again every half hour.",
-    );
+  if (!results) return empty("Couldn't load India's results", schedFailure());
   if (!results.length) return "";
-  return `<div class="sec" id="results" tabindex="-1" data-k="rh"><span>Recent series</span></div><div class="list" data-k="rl">${groupSeries(
+  return `<h2 class="sec" id="results" tabindex="-1" data-k="rh"><span>Recent series</span></h2><div class="list" data-k="rl">${groupSeries(
     results,
   )
     .map(resultsRow)
@@ -1875,7 +2078,7 @@ function resultsRow(g) {
   return `<details class="sr" data-k="rs${esc(g.id)}" data-series="${esc(key)}"${S.openSeries.has(key) ? " open" : ""}>
     <summary><div><div class="nm">${esc(withoutYear(g.name))}</div>${line ? `<div class="stand"><span class="vh">${esc(standings(played))}</span><span class="stand-l" aria-hidden="true">${line}</span></div>` : ""}</div>
       <div class="nx">${last.start ? esc(dayMonth(last.start)) : ""}<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></div></summary>
-    <div class="sr-chips">${resultChips(played)}</div>
+    <div class="sr-chips">${resultChips(played)}${played.some((m) => m.phase === "done" && outcome(m) === "nr") ? '<p class="key">NR no result (rain or no play)</p>' : ""}</div>
     ${g.fixtures.map(row).join("")}
   </details>`;
 }
@@ -1900,7 +2103,7 @@ function seriesRow(g) {
     last.start && dayMonth(last.start) !== dayMonth(first.start)
       ? ` · until ${dayMonth(last.start)}`
       : "";
-  return `<details class="sr ahead" data-k="sr${esc(g.id)}" data-series="${esc(g.id)}"${open ? " open" : ""}>
+  return `<details class="sr ahead" id="series-${esc(g.id)}" data-k="sr${esc(g.id)}" data-series="${esc(g.id)}"${open ? " open" : ""}>
     <summary>${calTile(first.start)}<div><div class="nm">${esc(withoutYear(g.name))}</div><div class="sub">${first.start ? `<span class="vh">From ${esc(fullFmt.format(first.start))}: </span>` : ""}${esc(composition(g.fixtures, sideOf(first)))}${esc(until)}</div></div>
       <div class="nx"><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></div></summary>
     ${fixtureList(g.fixtures)}
@@ -1922,7 +2125,7 @@ function errorCard(msg, what = "scores") {
 // Where to read about sources and privacy. How fresh the data is, and refreshing it,
 // live in the top bar (freshness()).
 const foot = () =>
-  '<p class="foot" data-k="foot"><a class="link" href="/about.html">About &amp; privacy</a></p>';
+  '<p class="foot" data-k="foot"><span>Data from Cricbuzz and ESPNcricinfo</span><a class="link" href="/about.html">About &amp; privacy</a></p>';
 
 // ---------- match view
 
@@ -1954,6 +2157,28 @@ function teamInnings(id, h) {
   );
 }
 
+const notFoundView = () =>
+  `${empty("We couldn't find this match", "The link may be wrong or the match was removed.")}<a class="to-tab" data-k="home" href="#now">Go to the home page →</a>`;
+
+// The list's copy of the match while its own page loads.
+function loadingView(r, m, body = skeleton()) {
+  if (!m) return skeleton(1) + skeleton();
+  return `<section class="mhero" data-k="mh">
+    ${stateSticker(m)}
+    <div class="series">${tags(m)}<span>${esc(m.series)}</span></div>
+    <h1 tabindex="-1">${esc(m.t1.short)} v ${esc(m.t2.short)} · ${esc(m.desc)}</h1>
+    <div class="rows">${hrow(m, m.t1, m.s1)}${hrow(m, m.t2, m.s2)}</div>
+    <div class="status">${esc(m.status)}</div>
+  </section>${matchTabs(r.id, r.tab)}<div data-k="body-${r.tab}">${body}</div>`;
+}
+
+// Cricbuzz's match centre can name the sides in the other order from its lists: the
+// page follows the list (the card the reader tapped), so the heading never flips.
+function inListOrder(h, sm) {
+  if (!sm || String(sm.t1.id) !== String(h.t2.id)) return h;
+  return { ...h, t1: h.t2, t2: h.t1 };
+}
+
 function matchView(r) {
   const id = r.id;
   const d = S.match.get(id);
@@ -1963,12 +2188,15 @@ function matchView(r) {
     // Only a match that hasn't started shows its fixture preview; a live or finished
     // one that failed to load says so.
     if (fixture?.phase === "upcoming") return previewView(r, fixture);
-    if (S.missing.has(id))
-      return `${empty("We couldn't find this match", "The link may be wrong or the match was removed.")}<a class="to-tab" data-k="home" href="#now">Go to the home page →</a>`;
-    return err ? errorCard(err, "this match") : skeleton(1) + skeleton();
+    if (S.missing.has(id)) return notFoundView();
+    if (err)
+      return fixture
+        ? loadingView(r, fixture, errorCard(err, "this match"))
+        : errorCard(err, "this match");
+    return loadingView(r, fixture);
   }
-  const h = d.header;
   const sm = summaryOf(id);
+  const h = inListOrder(d.header, sm);
   // The list may name the sides in the other order: match flags by team id.
   const flagOf = (t) =>
     [sm?.t1, sm?.t2].find((x) => x && String(x.id) === String(t.id))?.flag;
@@ -1985,23 +2213,11 @@ function matchView(r) {
     batting: d.mini?.batTeam ?? sm?.batting,
   };
   const mini = d.mini;
-  const eq = [];
-  if (live && mini) {
-    if (mini.crr)
-      eq.push(`<span class="pill">Run rate <b>${esc(mini.crr)}</b></span>`);
-    if (mini.target)
-      eq.push(`<span class="pill">Target <b>${esc(mini.target)}</b></span>`);
-    if (mini.rrr)
-      eq.push(`<span class="pill">Needed rate <b>${esc(mini.rrr)}</b></span>`);
-    if (mini.partnership?.b)
-      eq.push(
-        `<span class="pill">Partnership <b>${esc(mini.partnership.r)}</b> off ${esc(mini.partnership.b)}</span>`,
-      );
-  }
+  const eq = live && mini && r.tab === "live" ? pills(mini) : [];
   const heroHtml = `<section class="mhero" data-k="mh">
     ${stateSticker(h)}
     <div class="series">${tags(h)}<span>${esc(h.series)}</span></div>
-    <h1>${esc(h.t1.short)} v ${esc(h.t2.short)} · ${esc(h.desc)}</h1>
+    <h1 tabindex="-1">${esc(h.t1.short)} v ${esc(h.t2.short)} · ${esc(h.desc)}</h1>
     <div class="rows">${hrow(m, t1, i1)}${hrow(m, t2, i2)}</div>
     <div class="status">${esc(h.status || (h.start ? `Starts ${startsShort(h.start)}` : ""))}</div>
     ${eq.length ? `<div class="eq">${eq.join("")}</div>` : ""}
@@ -2013,6 +2229,23 @@ function matchView(r) {
   else if (r.tab === "squads") body = squadsTab(id);
   else body = infoTab(id, d);
   return `${heroHtml}${seg}<div data-k="body-${r.tab}">${body}</div>${foot()}`;
+}
+
+// The run rate, target and partnership: on the commentary tab, where they're read with
+// the play; other tabs keep the score short on small screens.
+function pills(mini) {
+  const eq = [];
+  if (mini.crr)
+    eq.push(`<span class="pill">Run rate <b>${esc(mini.crr)}</b></span>`);
+  if (mini.target)
+    eq.push(`<span class="pill">Target <b>${esc(mini.target)}</b></span>`);
+  if (mini.rrr)
+    eq.push(`<span class="pill">Needed rate <b>${esc(mini.rrr)}</b></span>`);
+  if (mini.partnership?.b)
+    eq.push(
+      `<span class="pill">Partnership <b>${esc(mini.partnership.r)}</b> off ${esc(mini.partnership.b)}</span>`,
+    );
+  return eq;
 }
 
 // The first section is "Commentary" in every phase: one name for one place.
@@ -2041,7 +2274,7 @@ function previewView(r, m) {
   const hero = `<section class="mhero" data-k="mh">
     ${stateSticker(m)}
     <div class="series">${tags(m)}<span>${esc(m.series)}</span></div>
-    <h1>${esc(m.t1.short)} v ${esc(m.t2.short)} · ${esc(m.desc)}</h1>
+    <h1 tabindex="-1">${esc(m.t1.short)} v ${esc(m.t2.short)} · ${esc(m.desc)}</h1>
     <div class="rows">${hrow(m, m.t1, [])}${hrow(m, m.t2, [])}</div>
     ${m.start ? `<div class="when"><span>${esc(startsShort(m.start))}</span></div>${venueTime(m)}` : ""}
   </section>`;
@@ -2099,7 +2332,7 @@ function ballChip(t) {
   } else if (v === "4") [cls, title] = ["f4", "Four"];
   else if (v === "6") [cls, title] = ["f6", "Six"];
   else if (/^\d+$/.test(v)) title = `${v} run${v === "1" ? "" : "s"}`;
-  return `<span class="b ${cls}"${title ? ` title="${esc(title)}"` : ""}>${esc(v === "0" ? "•" : v)}</span>`;
+  return `<span class="b ${cls}"${title ? ` title="${esc(title)}" role="img" aria-label="${esc(title)}"` : ""}>${esc(v === "0" ? "•" : v)}</span>`;
 }
 
 // Column headings with their full meaning for hover, touch-and-hold and screen readers.
@@ -2142,7 +2375,7 @@ function liveTab(id, d) {
       ${mini.lastWicket ? `<div class="kv"><span class="lbl">Last wicket</span>${esc(mini.lastWicket.replace(/\s+/g, " "))}</div>` : ""}
       ${reviewsLeft(mini.reviews, d.header)}
       ${fallOfWickets(id, mini.inn)}
-      ${statKey(" · Overs: • no run, W wicket, Wd wide, N no-ball, L leg byes, B byes (with the runs, as in L1)")}
+      ${statKey(" · d declared · Overs: • no run, W wicket, Wd wide, N no-ball, L leg byes, B byes (with the runs, as in L1) · Ball 3.6 is the 6th ball after 3 overs, so it ends the 4th over · Fall of wickets: the score when each wicket fell")}
     </div>`;
   }
   const ci = useCricinfo(id);
@@ -2150,13 +2383,9 @@ function liveTab(id, d) {
   const live = d.header.phase === "live";
   const items = commentary(id);
   const quiet = !ci && live && !paused(d.header) ? quietFor(items, d.asOf) : 0;
-  html += `<div class="sec" data-k="ch"><span>Commentary</span>${live && !quiet ? "<small>Updates every 15 seconds</small>" : ""}</div>`;
-  if (S.ci.get(id)?.available) {
-    const i = ci ? 1 : 0;
-    html += `<div class="seg sub" data-k="srcseg" style="--n:2;--i:${i}" role="group" aria-label="Commentary source"><i class="thumb" aria-hidden="true"></i>
-      <button type="button" data-act="src" data-src="cb" aria-pressed="${!ci}">Cricbuzz · ball by ball</button>
-      <button type="button" data-act="src" data-src="ci" aria-pressed="${!!ci}">Cricinfo · live blog</button></div>`;
-  }
+  const inPlay = live && !paused(d.header);
+  html += `<h2 class="sec" data-k="ch"><span>Commentary</span>${inPlay && !quiet ? "<small>Updates every 15 seconds</small>" : ""}</h2>`;
+  if (S.ci.get(id)?.available) html += sourceSwitch(ci);
   if (ci && live) html += behindNote(items, mini);
   if (quiet) html += quietNote(id, quiet);
   if (!items.length) {
@@ -2171,9 +2400,15 @@ function liveTab(id, d) {
         );
     return html;
   }
-  html += `<div class="card flush" data-k="cm-${ci ? "ci" : "cb"}"><div class="comm">${items.map(commItem).join("")}</div>${ci ? ciMore(id) : cbMore(id)}</div>`;
+  html += `<div class="card flush" data-k="cm-${ci ? "ci" : "cb"}"><div class="comm" role="list" aria-label="Commentary, latest first">${items.map(commItem).join("")}</div>${ci ? ciMore(id) : cbMore(id)}</div>`;
   return html;
 }
+
+// The commentary source: Cricbuzz's ball by ball or Cricinfo's live blog.
+const sourceSwitch = (ci) =>
+  `<p class="src-l" data-k="srcl" id="srcLabel">Show commentary from</p><div class="seg sub" data-k="srcseg" style="--n:2;--i:${ci ? 1 : 0}" role="group" aria-labelledby="srcLabel"><i class="thumb" aria-hidden="true"></i>
+      <button type="button" data-act="src" data-src="cb" aria-pressed="${!ci}">Cricbuzz · ball by ball</button>
+      <button type="button" data-act="src" data-src="ci" aria-pressed="${!!ci}">Cricinfo · live blog</button></div>`;
 
 // Minutes since Cricbuzz's newest ball, when that is long enough to suspect its feed
 // stalled (an over takes about four). Both times are servers' clocks: the ball's stamp
@@ -2215,12 +2450,16 @@ function recentOvers(mini) {
   const overs = mini.recent.slice(-2);
   if (!overs.length) return "";
   const o = mini.innings?.at(-1)?.o;
-  const current = o == null ? null : Math.ceil(ballsAt(o) / 6);
-  const label = (i) => {
-    const n = current == null ? 0 : current - (overs.length - 1 - i);
-    if (n >= 1) return `Over ${n}`;
-    return i === overs.length - 1 ? "Latest" : "Before";
-  };
+  // A whole overs count means the latest over is complete.
+  const done = o != null && ballsAt(o) % 6 === 0;
+  const label = (i) =>
+    i === overs.length - 1
+      ? done
+        ? "Last over"
+        : "This over"
+      : done
+        ? "Previous"
+        : "Last over";
   return `<div class="recent">${overs
     .map(
       (balls, i) =>
@@ -2245,7 +2484,7 @@ function fallOfWickets(id, inn) {
   const fow = S.card.get(id)?.innings?.find((i) => i.inn === inn)?.fow ?? [];
   if (!fow.length) return "";
   return `<div class="fowx"><span class="lbl">Fall of wickets</span>
-    <ol>${fow.map((f, i) => `<li${i === fow.length - 1 ? ' class="last"' : ""} title="${esc(`${f.name}, ${f.over} ov`)}"><b>${esc(f.score)}</b>${esc(ordinal(f.n))}</li>`).join("")}</ol></div>`;
+    <ol>${fow.map((f, i) => `<li${i === fow.length - 1 ? ' class="last"' : ""} title="${esc(`${f.name}, ${f.over} ov`)}"><b>${esc(f.score)}</b>${esc(ordinal(f.n))} wkt</li>`).join("")}</ol></div>`;
 }
 
 function ordinal(n) {
@@ -2275,7 +2514,7 @@ const LONG_NOTE = 360;
 function commItem(c) {
   const k = `${c.kind}${c.ts}`;
   if (c.kind === "over") {
-    return `<div class="ov-card" data-k="${k}">
+    return `<div class="ov-card" role="listitem" data-k="${k}">
       <div class="top-line"><b>End of over ${esc(c.over)}</b><span><span class="dim">${esc(c.runs)} run${c.runs === 1 ? "" : "s"} · </span><b class="num">${esc(c.team)} ${esc(c.score)}</b></span></div>
       ${c.balls.length ? `<div class="balls">${c.balls.map(ballChip).join("")}</div>` : ""}
       <div class="who">${c.bat.map((p) => `<span><b>${esc(p.name)}</b> ${esc(p.score)}</span>`).join("")}${c.bowl ? `<span><b>${esc(c.bowl.name)}</b> ${esc(c.bowl.figs)}</span>` : ""}</div>
@@ -2283,12 +2522,12 @@ function commItem(c) {
   }
   // A review being decided: Cricbuzz's note, marked until the reviewed ball is posted.
   if (c.kind === "note" && c.review?.pending)
-    return `<div class="ci note rv-wait" data-k="${k}"><div class="tx"><span class="rv-h"><i></i>Review in progress</span>${c.html}</div></div>`;
+    return `<div class="ci note rv-wait" role="listitem" data-k="${k}"><div class="tx"><span class="rv-h"><i></i>Review in progress</span>${c.html}</div></div>`;
   // Long notes (press conferences, previews) start folded to four lines.
   if (c.kind === "note")
     return c.html.length > LONG_NOTE
-      ? `<details class="ci note long" data-k="${k}"><summary><div class="tx">${c.html}</div><span class="link more-note">Read more</span></summary></details>`
-      : `<div class="ci note" data-k="${k}"><div class="tx">${c.html}</div></div>`;
+      ? `<div class="ci-w" role="listitem" data-k="${k}"><details class="ci note long"><summary><div class="tx">${c.html}</div><span class="link more-note">Read more</span></summary></details></div>`
+      : `<div class="ci note" role="listitem" data-k="${k}"><div class="tx">${c.html}</div></div>`;
   const badge =
     c.event === "four"
       ? ballChip("4")
@@ -2307,7 +2546,7 @@ function commItem(c) {
   ]
     .filter(Boolean)
     .join(" ");
-  return `<div class="${cls}" data-k="${k}"><div class="ball"><span>${esc(c.ball)}</span>${badge}${c.review ? '<span class="b drs" title="Decision reviewed (DRS)">DRS</span>' : ""}</div><div class="tx">${c.html}${rv}</div></div>`;
+  return `<div class="${cls}" role="listitem" data-k="${k}"><div class="ball"><span>${esc(c.ball)}</span>${badge}${c.review ? '<span class="b drs" title="Decision reviewed (DRS)">DRS</span>' : ""}</div><div class="tx">${c.html}${rv}</div></div>`;
 }
 
 function scorecardTab(id, h) {
@@ -2327,9 +2566,7 @@ function scorecardTab(id, h) {
   S.open.set(id, open);
   const liveInn = h.phase === "live" ? S.match.get(id)?.mini?.inn : null;
   const mini = S.match.get(id)?.mini;
-  const onBat = new Set(
-    [mini?.striker?.id, mini?.nonStriker?.id].filter(Boolean),
-  );
+  const onBat = new Set([mini?.striker?.id].filter(Boolean));
   const lag = cardLag(card, liveInn, mini);
   return (
     lag ? `<div class="notice" data-k="lag"><span>${esc(lag)}</span></div>` : ""
@@ -2355,7 +2592,7 @@ function scorecardTab(id, h) {
           .join("");
         const ex = inn.extras;
         return `<details class="inn" data-k="i${inn.inn}" data-inn="${inn.inn}"${open.has(inn.inn) ? " open" : ""}>
-        <summary><div class="inn-h"><b>${esc(inn.team)}${isLive ? ' <span class="live" style="margin-left:6px"><i></i>Batting</span>' : ""}</b><span><span class="num">${esc(score(inn))}<small>${esc(oversTxt(inn.o))}</small></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></span></div></summary>
+        <summary><div class="inn-h"><h2 class="inn-t">${esc(inn.team)}${isLive ? ' <span class="live" style="margin-left:6px"><i></i>Batting</span>' : ""}</h2><span><span class="num">${esc(score(inn))} <small>${esc(oversTxt(inn.o))}</small></span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></span></div></summary>
         <table class="tbl">${head("Batter", BAT_COLS)}<tbody>${bat}</tbody>
           <tfoot><tr><td>Extras <span class="dim" style="font-weight:500">(byes ${ex.b}, leg byes ${ex.lb}, wides ${ex.w}, no-balls ${ex.nb}${ex.p ? `, penalty ${ex.p}` : ""})</span></td><td class="n">${ex.total}</td><td colspan="4"></td></tr>
           <tr><td>Total <span class="dim" style="font-weight:500">${esc(oversTxt(inn.o))}${inn.rr ? ` · run rate ${esc(inn.rr)}` : ""}</span></td><td colspan="5" class="tot">${esc(score(inn))}</td></tr></tfoot></table>
@@ -2365,7 +2602,7 @@ function scorecardTab(id, h) {
       </details>`;
       })
       .join(""),
-    statKey(" · (c) captain · (wk) wicketkeeper"),
+    statKey(" · (c) captain · (wk) wicketkeeper · d declared"),
   );
 }
 
@@ -2373,6 +2610,8 @@ function scorecardTab(id, h) {
 function cardLag(card, liveInn, mini) {
   const inCard = card.innings.find((i) => i.inn === liveInn);
   const now = mini?.innings?.find((i) => i.inn === liveInn);
+  if (now && !inCard)
+    return `This scorecard doesn't have ${now.team ? `${now.team}'s` : "the current"} innings yet; the live score is at ${now.o} ov. Cricbuzz's scorecard usually catches up within a minute.`;
   if (!inCard || !now || ballsAt(now.o) <= ballsAt(inCard.o)) return "";
   return `This scorecard is at ${inCard.o} ov; the live score is at ${now.o} ov. Cricbuzz's scorecard usually catches up within a minute.`;
 }
@@ -2402,7 +2641,7 @@ function squadsTab(id) {
   const groups = t.groups
     .map(
       (g) =>
-        `<div class="grp-h">${esc(g.label)} <span style="font-weight:600">· ${g.players.length}</span></div>${g.players
+        `<h2 class="grp-h">${esc(g.label)} <span style="font-weight:600">· ${g.players.length}</span></h2>${g.players
           .map(
             (
               p,
@@ -2413,7 +2652,7 @@ function squadsTab(id) {
           .join("")}`,
     )
     .join("");
-  return `${seg}<div class="card flush" data-k="sq${ti}">${groups || '<div class="kv">No players listed.</div>'}</div>`;
+  return `${seg}<div class="card flush" data-k="sq${ti}">${groups || '<div class="kv">No players listed.</div>'}<p class="key" data-k="sqkey"><b>Key</b> C captain · WK wicketkeeper · ✈ overseas player</p></div>`;
 }
 
 function infoTab(id, d) {
@@ -2447,10 +2686,10 @@ const ROLE = {
 function cricinfoInfo(id) {
   const ci = S.ci.get(id);
   if (!ci)
-    return `<div class="sec" data-k="cih"><span>From Cricinfo</span></div>${skeleton(1)}`;
+    return `<h2 class="sec" data-k="cih"><span>From Cricinfo</span></h2>${skeleton(1)}`;
   if (!ci.available)
     return ci.error
-      ? `<div class="sec" data-k="cih"><span>From Cricinfo</span></div><div class="notice" data-k="cierr"><span>Couldn't reach Cricinfo. ${esc(sentence(ci.error))} Crease tries again in a minute.</span><button class="link" type="button" data-act="retry">Try again now</button></div>`
+      ? `<h2 class="sec" data-k="cih"><span>From Cricinfo</span></h2><div class="notice" data-k="cierr"><span>Couldn't reach Cricinfo. ${esc(sentence(ci.error))} Crease tries again in a minute.</span><button class="link" type="button" data-act="retry">Try again now</button></div>`
       : "";
   const officials = new Map();
   for (const o of ci.officials) {
@@ -2461,7 +2700,7 @@ function cricinfoInfo(id) {
   const rows = [
     ["Match", ci.notes.matchnumber],
     ["Days", ci.notes.matchdays],
-    ["Hours of play", ci.notes.hoursofplay],
+    ["Hours of play (local time at the ground)", ci.notes.hoursofplay],
     ...[...officials].map(([role, names]) => [role, names.join(", ")]),
     [
       "Ground",
@@ -2484,7 +2723,7 @@ function cricinfoInfo(id) {
       ? `<div class="kv"><span class="lbl">${esc(label)}</span>${items.map((t) => `<div>${esc(t)}</div>`).join("")}</div>`
       : "";
   const debuts = ci.debuts.map((t) => `${t.team}: ${t.players.join(", ")}`);
-  return `<div class="sec" data-k="cih"><span>From Cricinfo</span></div>
+  return `<h2 class="sec" data-k="cih"><span>From Cricinfo</span></h2>
     <div class="card flush" data-k="ciinfo">${rows.map(([k, v]) => `<div class="kv" style="border-top:0"><span class="lbl">${esc(k)}</span>${esc(v)}</div>`).join("")}
     ${list("Debuts", debuts)}${list("Close of play", ci.closeOfPlay)}${list("Latest notes", ci.milestones)}</div>
     ${ci.link ? `<a class="to-tab" data-k="cilink" href="${esc(ci.link)}" target="_blank" rel="noopener noreferrer">Open this match on ESPNcricinfo (new tab) →</a>` : ""}`;
@@ -2502,39 +2741,43 @@ let checking = false;
 
 function viewData(r) {
   if (r.kind === "list") return { asOf: S.list?.asOf, err: S.listErr };
+  if (r.kind === "bad" || S.missing.has(r.id)) return {};
   const d = S.match.get(r.id);
   const h = d?.header ?? summaryOf(r.id);
   const still = !h
     ? ""
     : h.phase === "done"
-      ? "Final"
+      ? "Finished"
       : h.phase === "upcoming"
         ? "Not started"
         : paused(h)
           ? stateWord(h)
           : "";
+  const ticks = !!h && paused(h);
   // Before Cricbuzz opens the match centre the page is the fixture from the lists;
   // its "not found" is expected, not a failed refresh.
-  if (!d) return { asOf: S.list?.asOf, err: S.listErr, still };
+  if (!d) return { asOf: S.list?.asOf, err: S.listErr, still, ticks };
   // The scorecard has its own fetch time, which can trail the live score.
   if (r.tab === "scorecard")
-    return { asOf: S.card.get(r.id)?.asOf, err: S.cardErr.get(r.id), still };
-  return { asOf: d.asOf, err: S.matchErr.get(r.id), still };
+    return {
+      asOf: S.card.get(r.id)?.asOf,
+      err: S.cardErr.get(r.id),
+      still,
+      ticks,
+    };
+  return { asOf: d.asOf, err: S.matchErr.get(r.id), still, ticks };
 }
 
-const minsOld = (ms) => {
-  const m = Math.round(ms / 60000);
-  return m < 1 ? `${Math.max(1, Math.round(ms / 1000))}s old` : `${m} min old`;
-};
+const minsOld = (ms) => `${age(Math.max(ms, 1000))} old`;
 
 function freshness(r) {
   if (checking) return { cls: "spin", text: "Checking…" };
-  const { asOf, err, still } = viewData(r);
+  const { asOf, err, still, ticks } = viewData(r);
   const offline = navigator.onLine === false;
   if (!asOf)
     return err ? { cls: "bad", text: offline ? "Offline" : "Retrying" } : null;
   // Narrow screens keep the short part: "Offline", or the data's age in red.
-  if (err)
+  if (err || offline)
     return offline
       ? {
           cls: "bad",
@@ -2546,7 +2789,8 @@ function freshness(r) {
           lead: "Refresh failed · ",
           text: minsOld(Date.now() - asOf),
         };
-  if (still) return { cls: "", text: still, asOf };
+  if (still)
+    return { cls: "", text: still, more: ticks ? ` · ${ago(asOf)}` : "", asOf };
   // On narrow screens the line drops its first word: "18s ago".
   return {
     cls: Date.now() - asOf > FRESH_WARN ? "old" : "",
@@ -2582,8 +2826,8 @@ function showFreshness(r) {
 async function refreshNow() {
   if (checking) return;
   checking = true;
-  render();
   try {
+    render();
     await refresh(true);
   } finally {
     checking = false;
@@ -2601,9 +2845,79 @@ function applyScene(r, teams) {
   else root.removeProperty("--scene");
 }
 
+// Whatever a view meets, the page still renders: an error card, not a blank screen.
+function viewHtml(r) {
+  try {
+    if (r.kind === "bad") return notFoundView();
+    return r.kind === "match" ? matchView(r) : listView(r.tab);
+  } catch (e) {
+    console.error(e);
+    return errorCard("Something on this page couldn't be shown.", "this page");
+  }
+}
+
+// The top bar's title, which the document title repeats.
+function titleOf(r, teams) {
+  if (r.kind === "bad" || S.missing.has(r.id)) return "Not found";
+  if (r.kind !== "match") return headingOf(r.tab);
+  return teams ? `${teams.t1.short} v ${teams.t2.short}` : "Match";
+}
+
+let spoken = { id: null, key: "" };
+function announce(r) {
+  if (r.kind === "list" && r.tab === "now") return announceHome();
+  // Coming back to home starts afresh: nothing from before is announced.
+  homeSaid = null;
+  const d = r.kind === "match" ? S.match.get(r.id) : null;
+  if (!d) return;
+  const h = d.header;
+  const last = d.mini?.innings?.at(-1);
+  const key = [
+    h.phase,
+    h.state,
+    h.phase === "live" ? "" : h.status,
+    last ? `${last.inn}:${last.w}:${Math.floor(ballsAt(last.o) / 6)}` : "",
+  ].join("|");
+  if (spoken.id !== r.id) {
+    spoken = { id: r.id, key };
+    return;
+  }
+  if (spoken.key === key) return;
+  spoken.key = key;
+  const now = last
+    ? `${last.team ?? ""} ${last.r} for ${last.w} after ${last.o} overs. `
+    : "";
+  $("#announce").textContent = `${now}${h.status}`.trim();
+}
+
+// Home's live India, IPL and followed matches: a wicket or a result is announced.
+let homeSaid = null;
+function announceHome() {
+  const on = pick("now").filter((m) => m.phase !== "upcoming");
+  const now = new Map(
+    on.map((m) => [
+      String(m.id),
+      { w: [...m.s1, ...m.s2].reduce((n, i) => n + i.w, 0), m },
+    ]),
+  );
+  const before = homeSaid;
+  homeSaid = now;
+  if (!before) return;
+  const said = [];
+  for (const [id, { w, m }] of now) {
+    const was = before.get(id);
+    if (!was) continue;
+    if (m.phase === "done" && was.m.phase !== "done")
+      said.push(`${m.t1.short} v ${m.t2.short}: ${m.status}`);
+    else if (w > was.w)
+      said.push(`Wicket. ${m.t1.short} v ${m.t2.short}: ${m.status}`);
+  }
+  if (said.length) $("#announce").textContent = said.join(". ");
+}
+
 function render() {
   const r = route();
-  const html = r.kind === "match" ? matchView(r) : listView(r.tab);
+  const html = viewHtml(r);
   morph(
     view,
     `<div class="page" data-k="${r.kind === "match" ? `m${r.id}` : r.tab}">${html}</div>`,
@@ -2625,7 +2939,9 @@ function render() {
     if (a.dataset.tab === r.tab && r.kind === "list")
       a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
-    const hasLive = pick(a.dataset.tab).some((m) => m.phase === "live");
+    const hasLive = pick(a.dataset.tab).some(
+      (m) => m.phase === "live" && !paused(m),
+    );
     let lv = a.querySelector(".lv");
     if (hasLive && a.dataset.tab !== "all" && !lv) {
       lv = document.createElement("b");
@@ -2638,16 +2954,16 @@ function render() {
   $("#brand").hidden = r.kind === "match";
   tabs.dataset.ready = "";
   const d = r.kind === "match" ? S.match.get(r.id) : null;
-  const teams = d?.header ?? (r.kind === "match" ? summaryOf(r.id) : null);
+  const teams = d
+    ? inListOrder(d.header, summaryOf(r.id))
+    : r.kind === "match"
+      ? summaryOf(r.id)
+      : null;
   applyScene(r, teams);
-  const title =
-    r.kind === "match"
-      ? teams
-        ? `${teams.t1.short} v ${teams.t2.short}`
-        : "Match"
-      : headingOf(r.tab);
+  const title = titleOf(r, teams);
   $("#topTitle").textContent = title;
   showFreshness(r);
+  announce(r);
   document.title =
     r.kind === "match" && d
       ? `${title} · ${d.header.status} · Crease`
@@ -2682,16 +2998,22 @@ document.addEventListener("visibilitychange", () => {
 });
 // ---------- top bar and sheets
 
+// Returning to an entry a sheet added (Back from About, opened from Settings): the
+// sheet is closed, so that entry is stepped over.
+if (history.state?.sheet) history.back();
+
 // An open sheet is a history entry: Back closes it instead of leaving the page.
 function openSheet(id) {
   const d = $(id);
   if (d.open) return;
   d.showModal();
+  d.dataset.opened = String(Date.now());
   history.pushState({ sheet: id }, "", location.href);
 }
 addEventListener("popstate", () => {
   for (const d of document.querySelectorAll("dialog.sheet[open]"))
     if (history.state?.sheet !== `#${d.id}`) d.close();
+  if (history.state?.sheet && !$(history.state.sheet)?.open) history.back();
 });
 
 // Outside the sheet's box: a press that starts and ends on the backdrop. Taps on the
@@ -2711,7 +3033,8 @@ for (const d of document.querySelectorAll("dialog.sheet")) {
     downOutside = e.target === d && outside(d, e);
   });
   d.addEventListener("click", (e) => {
-    const backdrop = downOutside && e.target === d && outside(d, e);
+    const settled = Date.now() - Number(d.dataset.opened ?? 0) > 450;
+    const backdrop = settled && downOutside && e.target === d && outside(d, e);
     downOutside = false;
     if (backdrop || e.target.closest("[data-close]")) d.close();
   });
@@ -2729,10 +3052,6 @@ if (canAlert) {
     openSheet("#alertsSheet");
   });
   $("#alertsToggle").addEventListener("click", toggleAlerts);
-  // The worker exists only to show alerts: without permission for them it goes.
-  if (alertsOn) navigator.serviceWorker.register("/sw.js");
-  else if (Notification.permission !== "granted")
-    navigator.serviceWorker.getRegistration().then((reg) => reg?.unregister());
   // A tapped alert asks this page to open its match.
   navigator.serviceWorker.addEventListener("message", (e) => {
     if (e.data?.type === "open" && /^#m\/\d+/.test(e.data.hash))
@@ -2740,8 +3059,20 @@ if (canAlert) {
   });
 }
 
+// The service worker keeps Crease's files and its last answers, so the app opens
+// without a connection (see sw.js); it also shows alerts.
+if ("serviceWorker" in navigator)
+  navigator.serviceWorker.register("/sw.js").catch(() => {
+    // Not available (private mode, file:): the app works online as before.
+  });
+
+$("#skip").addEventListener("click", () =>
+  (view.querySelector("h1") ?? view).focus(),
+);
+
 // Follow a team (null: none). The choice is the reader's, so it is stored.
 function follow(t) {
+  const before = fav;
   fav = t;
   try {
     if (t) localStorage.setItem("crease-team", JSON.stringify(t));
@@ -2749,17 +3080,51 @@ function follow(t) {
   } catch {
     // Storage blocked: the choice lasts for this visit only.
   }
+  const changed = before && String(before.id) !== String(t?.id);
+  if (changed && "caches" in window)
+    caches
+      .open("crease-v1")
+      .then((c) => c.delete(`/api/team/${before.id}`))
+      .catch(() => {
+        // No offline copy: nothing to remove.
+      });
   say(
-    t
-      ? `Following ${t.name}. Their matches show on Now.`
-      : "Not following a team.",
+    !t
+      ? `Not following ${before?.name ?? "a team"}.`
+      : changed
+        ? `Following ${t.name} instead of ${before.name}.`
+        : `Following ${t.name}. Their matches show on Now.`,
+    changed ? { label: "Undo", run: () => follow(before) } : null,
   );
   render();
   if (t) refresh();
 }
 
+const COUNTRIES = [
+  [96, "Afghanistan", "AFG"],
+  [4, "Australia", "AUS"],
+  [6, "Bangladesh", "BAN"],
+  [9, "England", "ENG"],
+  [27, "Ireland", "IRE"],
+  [13, "New Zealand", "NZ"],
+  [3, "Pakistan", "PAK"],
+  [11, "South Africa", "RSA"],
+  [5, "Sri Lanka", "SL"],
+  [10, "West Indies", "WI"],
+  [12, "Zimbabwe", "ZIM"],
+  [26, "Canada", "CAN"],
+  [161, "Namibia", "NAM"],
+  [72, "Nepal", "NEP"],
+  [24, "Netherlands", "NED"],
+  [304, "Oman", "OMAN"],
+  [23, "Scotland", "SCO"],
+  [7, "United Arab Emirates", "UAE"],
+  [15, "United States of America", "USA"],
+];
+
 // Teams to choose from in Settings: every team in a loaded points table (IPL sides,
-// a tournament's countries), plus every international side in the known fixtures.
+// a tournament's countries), every international side in the known fixtures, and the
+// fixed list of countries.
 function teamChoices() {
   const byId = new Map();
   const add = (t, ipl) => {
@@ -2776,16 +3141,22 @@ function teamChoices() {
   for (const [id, t] of S.tables)
     for (const g of t.groups)
       for (const x of g.teams) add(x, iplIds.includes(id));
+  fixtureSides(add);
+  for (const [id, name, short] of COUNTRIES) add({ id, name, short }, false);
+  if (fav) add(fav, !!fav.ipl);
+  return [...byId.values()]
+    .filter((t) => !/^TBC|\(/.test(t.name) && !INDIA.test(t.name))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// IPL sides and senior national sides from the known fixtures.
+function fixtureSides(add) {
   for (const m of [...knownMatches(), ...(S.sched?.ipl?.fixtures ?? [])]) {
     const ipl = m.tags?.includes("ipl");
     if (ipl || m.type === "International" || m.tags?.includes("india"))
       for (const t of [m.t1, m.t2])
         if (!/\b(women|A|U19|under-19)\b/i.test(t.name)) add(t, !!ipl);
   }
-  if (fav) add(fav, !!fav.ipl);
-  return [...byId.values()]
-    .filter((t) => !/^TBC|\(/.test(t.name))
-    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function fillTeamSelect() {
@@ -2830,6 +3201,17 @@ darkQuery.addEventListener("change", applyTheme);
 
 $("#settingsBtn").addEventListener("click", () => {
   const sheet = $("#settingsSheet");
+  const sample = new Date();
+  sample.setHours(13, 30, 0, 0);
+  for (const [id, cycle] of [
+    ["#clock12", "h12"],
+    ["#clock24", "h23"],
+  ])
+    $(id).textContent = new Intl.DateTimeFormat(LOCALE, {
+      hour: cycle === "h12" ? "numeric" : "2-digit",
+      minute: "2-digit",
+      hourCycle: cycle,
+    }).format(sample);
   sheet.querySelector(
     `input[name=clock][value="${h12 ? "12" : "24"}"]`,
   ).checked = true;
@@ -2838,7 +3220,18 @@ $("#settingsBtn").addEventListener("click", () => {
   sheet.querySelector(`input[name=wc][value="${wcMode}"]`).checked = true;
   fillTeamSelect();
   openSheet("#settingsSheet");
+  iplSides().then((added) => added && fillTeamSelect());
 });
+
+// The IPL table that names this season's or last season's sides, for Settings; true
+// when it had to be loaded.
+async function iplSides() {
+  if (!S.sched) await loadSched();
+  const id = iplTableId();
+  if (!id || S.tables.has(id)) return false;
+  await loadTable(id);
+  return S.tables.has(id);
+}
 $("#settingsSheet").addEventListener("change", (e) => {
   const { name, value } = e.target;
   if (e.target.id === "teamSelect") {
@@ -2869,6 +3262,23 @@ $("#settingsSheet").addEventListener("change", (e) => {
     render();
   }
   if (name === "theme") applyTheme();
+});
+
+view.addEventListener("click", (e) => {
+  const a = e.target.closest("a[data-open-series]");
+  if (!a) return;
+  S.openSeries.add(a.dataset.openSeries);
+  nextReveal = `series-${a.dataset.openSeries}`;
+});
+
+$("#tabs").addEventListener("click", (e) => {
+  const a = e.target.closest("a[data-tab]");
+  if (!a || e.metaKey || e.ctrlKey || e.shiftKey) return;
+  const r = route();
+  if (r.kind !== "list" || r.tab === "now" || a.dataset.tab === r.tab) return;
+  e.preventDefault();
+  history.replaceState(null, "", a.getAttribute("href"));
+  onRoute();
 });
 
 // One Back per press: a second click before the route changes is ignored.
@@ -2952,7 +3362,11 @@ view.addEventListener(
   true,
 );
 
-// Keep relative "Updated …" text honest between polls.
+// Keep relative "Updated …" text honest between polls: the top bar's age every second,
+// the page's countdowns every ten.
+setInterval(() => {
+  if (!document.hidden) showFreshness(route());
+}, 1000);
 setInterval(() => {
   if (!document.hidden) render();
 }, 10000);

@@ -103,9 +103,13 @@ function valueFor(text, key, id) {
 const DONE = /^(complete|abandon|abandoned|no result|cancelled|result)$/i;
 const UPCOMING = /^(preview|upcoming|delayed start)$/i;
 
-function phaseOf(state) {
+// Cricbuzz can post the result ("Pakistan won by 87 runs") minutes before its state
+// leaves "In Progress": a result in the status settles the match.
+const RESULT = /\bwon by\b|\bmatch (tied|drawn)\b|^no result\b|\babandoned\b/i;
+
+function phaseOf(state, status = "") {
   if (!state) return "upcoming";
-  if (DONE.test(state)) return "done";
+  if (DONE.test(state) || RESULT.test(status)) return "done";
   if (UPCOMING.test(state)) return "upcoming";
   return "live";
 }
@@ -155,17 +159,21 @@ function innings(score) {
     }));
 }
 
-// Series pages write some names in capitals ("ROYAL CHALLENGERS BENGALURU").
-const displayName = (name) =>
-  /[a-z]/.test(name)
+// Series pages write some names in capitals ("ROYAL CHALLENGERS BENGALURU"), and
+// placeholders without a space ("TBC(Qualifier A)").
+const spaced = (name) => name.replace(/(\S)\(/g, "$1 (");
+const displayName = (raw) => {
+  const name = spaced(raw);
+  return /[a-z]/.test(name)
     ? name
     : name.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+};
 
 function team(t) {
   return {
     id: t?.teamId ?? t?.id ?? null,
     name: displayName(t?.teamName ?? t?.name ?? ""),
-    short: t?.teamSName ?? t?.shortName ?? "",
+    short: spaced(t?.teamSName ?? t?.shortName ?? ""),
     flag: flagUrl(t?.imageId),
   };
 }
@@ -186,8 +194,8 @@ function utcOffset(tz) {
 const venueOf = (v) =>
   v
     ? {
-        ground: v.ground ?? "",
-        city: v.city ?? "",
+        ground: (v.ground ?? "").trim(),
+        city: (v.city ?? "").trim(),
         utcOffset: utcOffset(v.timezone),
       }
     : null;
@@ -201,6 +209,8 @@ function summary(entry, type = "") {
   const t1 = team(i.team1);
   const t2 = team(i.team2);
   if (isWomens(i.seriesName, t1.name, t2.name)) return null;
+  const s1 = innings(s?.team1Score);
+  const s2 = innings(s?.team2Score);
   return {
     id: i.matchId,
     series: i.seriesName ?? "",
@@ -209,17 +219,37 @@ function summary(entry, type = "") {
     format: i.matchFormat ?? "",
     type: i.matchType || type,
     start: Number(i.startDate) || null,
-    state: i.state ?? "",
-    status: statusText(i.status),
-    phase: phaseOf(i.state),
+    ...settled(i.state, i.status),
     venue: venueOf(i.venueInfo),
-    batting: i.currBatTeamId ?? null,
+    batting: notDeclared(i.currBatTeamId, [
+      [t1, s1],
+      [t2, s2],
+    ]),
     t1,
     t2,
-    s1: innings(s?.team1Score),
-    s2: innings(s?.team2Score),
+    s1,
+    s2,
     tags: tagsFor(i.seriesName, t1.name, t2.name),
   };
+}
+
+// State, status and phase together: a match whose status is a result reads as complete.
+function settled(state, status) {
+  const phase = phaseOf(state, status);
+  return {
+    state:
+      phase === "done" && !DONE.test(state ?? "") ? "Complete" : (state ?? ""),
+    status: statusText(status),
+    phase,
+  };
+}
+
+// Cricbuzz keeps a side "batting" through the break after it declares. `sides` pairs
+// each team with its innings.
+function notDeclared(id, sides) {
+  if (id == null) return null;
+  const [, inns] = sides.find(([t]) => t.id === id) ?? [null, []];
+  return inns.at(-1)?.dec ? null : id;
 }
 
 function matchesFromFlight(flight) {
@@ -275,7 +305,9 @@ export async function matches() {
   if (recent.status === "fulfilled") add(recent.value.value);
   if (upcoming.status === "fulfilled") add(upcoming.value.value);
   const all = [...byId.values()];
-  all.sort((a, b) => (a.start ?? 0) - (b.start ?? 0));
+  // Ties broken by id: the feeds rotate matches that start together, which would
+  // reshuffle a list under the reader on every poll.
+  all.sort((a, b) => (a.start ?? 0) - (b.start ?? 0) || a.id - b.id);
   return {
     // The live scores are as old as the older of the two live feeds that answered.
     asOf: Math.min(
@@ -554,8 +586,8 @@ function tableTeam(t) {
     .sort((a, b) => (a.startdt ?? 0) - (b.startdt ?? 0))[0];
   return {
     id: t.teamId,
-    name: t.teamFullName ?? t.teamName ?? "",
-    short: t.teamName ?? "",
+    name: spaced(t.teamFullName ?? t.teamName ?? ""),
+    short: spaced(t.teamName ?? ""),
     flag: flagUrl(t.teamImageId),
     played: t.matchesPlayed ?? 0,
     won: t.matchesWon ?? 0,
@@ -770,9 +802,7 @@ function header(h) {
     series: h.seriesName ?? h.seriesDesc ?? "",
     seriesId: h.seriesId ?? null,
     start: h.matchStartTimestamp ?? null,
-    state: h.state ?? "",
-    status: statusText(h.status),
-    phase: phaseOf(h.state),
+    ...settled(h.state, h.status),
     toss: h.tossResults?.tossWinnerName
       ? `${h.tossResults.tossWinnerName} won the toss and chose to ${
           /bat/i.test(h.tossResults.decision) ? "bat" : "bowl"
@@ -790,6 +820,21 @@ function header(h) {
   };
 }
 
+// Strike rate and economy to two places, worked out from the figures: Cricbuzz's
+// scorecard rounds them to one place ("2.7" for 30 off 11 overs) and its live score to
+// two, so the two pages disagreed.
+const ballsIn = (o) => {
+  const [w, b = 0] = String(o ?? 0)
+    .split(".")
+    .map(Number);
+  return (w || 0) * 6 + (b || 0);
+};
+const strikeRate = (r, b) => (b > 0 ? ((r * 100) / b).toFixed(2) : "0.00");
+const economy = (r, o) => {
+  const balls = ballsIn(o);
+  return balls > 0 ? ((r * 6) / balls).toFixed(2) : "0.00";
+};
+
 function batter(p) {
   if (!p?.name) return null;
   return {
@@ -799,7 +844,7 @@ function batter(p) {
     b: p.balls ?? 0,
     f4: p.fours ?? 0,
     f6: p.sixes ?? 0,
-    sr: p.strikeRate ?? "",
+    sr: strikeRate(p.runs ?? 0, p.balls ?? 0),
   };
 }
 
@@ -812,7 +857,7 @@ function bowler(p) {
     m: p.maidens ?? 0,
     r: p.runs ?? 0,
     w: p.wickets ?? 0,
-    econ: p.economy ?? "",
+    econ: economy(p.runs ?? 0, p.overs),
   };
 }
 
@@ -829,22 +874,25 @@ function reviewsLeft(u) {
 
 function miniscore(ms) {
   if (!ms) return null;
+  const inns = (ms.matchScoreDetails?.inningsScoreList ?? [])
+    .slice()
+    .sort((a, b) => a.inningsId - b.inningsId)
+    .map((s) => ({
+      inn: s.inningsId,
+      team: s.batTeamName,
+      teamId: s.batTeamId,
+      r: s.score ?? 0,
+      w: s.wickets ?? 0,
+      o: overs(s.overs),
+      dec: !!s.isDeclared,
+      fo: !!s.isFollowOn,
+    }));
+  const bat = ms.batTeam?.teamId ?? null;
   return {
     inn: ms.inningsId ?? null,
-    batTeam: ms.batTeam?.teamId ?? null,
-    innings: (ms.matchScoreDetails?.inningsScoreList ?? [])
-      .slice()
-      .sort((a, b) => a.inningsId - b.inningsId)
-      .map((s) => ({
-        inn: s.inningsId,
-        team: s.batTeamName,
-        teamId: s.batTeamId,
-        r: s.score ?? 0,
-        w: s.wickets ?? 0,
-        o: overs(s.overs),
-        dec: !!s.isDeclared,
-        fo: !!s.isFollowOn,
-      })),
+    // Not after the side declared: Cricbuzz keeps it "batting" through the break.
+    batTeam: inns.findLast((i) => i.teamId === bat)?.dec ? null : bat,
+    innings: inns,
     striker: batter(ms.batsmanStriker),
     nonStriker: batter(ms.batsmanNonStriker),
     bowler: bowler(ms.bowlerStriker),
@@ -916,7 +964,7 @@ function scorecardInnings(sc) {
     b: p.balls ?? 0,
     f4: p.fours ?? 0,
     f6: p.sixes ?? 0,
-    sr: p.strikeRate ?? 0,
+    sr: strikeRate(p.runs ?? 0, p.balls ?? 0),
   }));
   const batted = bat.filter((p) => p.b > 0 || p.out);
   const yetToBat = bat.filter((p) => !(p.b > 0 || p.out)).map((p) => p.name);
@@ -930,7 +978,7 @@ function scorecardInnings(sc) {
       w: p.wickets ?? 0,
       nb: p.no_balls ?? 0,
       wd: p.wides ?? 0,
-      econ: p.economy ?? 0,
+      econ: economy(p.runs ?? 0, p.overs),
     }),
   );
   const fow = Object.values(sc.wicketsData ?? {})

@@ -100,12 +100,16 @@ export async function open(
     theme = "light",
     at = rec.capturedAt,
     store = {},
+    // The service worker answers the page's requests itself; most tests block it so
+    // their page.route() failures reach the page. The offline test allows it.
+    serviceWorkers = "block",
   } = {},
 ) {
   const context = await browser.newContext({
     viewport: { width, height },
     locale: "en-IN",
     timezoneId: "Asia/Kolkata",
+    serviceWorkers,
   });
   await context.addInitScript(
     ([t, extra]) => {

@@ -331,7 +331,7 @@ img {
   gap: 5px;
   padding: 1px 8px;
   border-radius: 999px;
-  font-size: 0.68rem;
+  font-size: 0.74rem;
   font-weight: 600;
   line-height: 1.5;
   color: var(--muted);
@@ -675,6 +675,19 @@ main {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   color: var(--accent);
 }
+/* The followed team's matches. */
+.tag.fav {
+  gap: 3px;
+  background: color-mix(in srgb, #f2b705 22%, transparent);
+  color: var(--ink);
+}
+.tag.fav i {
+  font-style: normal;
+  color: #a87800;
+}
+:root[data-theme="dark"] .tag.fav i {
+  color: #f2b705;
+}
 
 /* ---------- surfaces */
 .list,
@@ -738,7 +751,7 @@ main {
   font-weight: 600;
 }
 .st .live {
-  font-size: 0.66rem;
+  font-size: 0.72rem;
 }
 .sides {
   display: grid;
@@ -777,7 +790,10 @@ main {
   color: var(--muted);
   margin-left: 4px;
 }
-.side.bat .nm::after {
+.nw {
+  white-space: nowrap;
+}
+.side.bat .nm .nw::after {
   content: "";
   display: inline-block;
   width: 6px;
@@ -1008,8 +1024,11 @@ main {
   color: var(--muted);
 }
 /* The link keeps a 44px tap area without adding height: padding, offset by margin. */
+/* Links inside running text: the 44px tap area doesn't push the lines apart. */
 .idle .link,
-.ph p .link {
+.ph p .link,
+.empty span .link,
+.sheet p .link {
   display: inline-block;
   min-height: 0;
   padding: 13px 0;
@@ -1245,14 +1264,21 @@ details.sr .stand b.w {
   align-items: center;
   gap: 8px;
   min-height: 44px;
+}
+/* Only the star follows: a 44px target that overlaps the cell's padding. */
+.star-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: 0 -14px 0 -10px;
   padding: 0;
   border: 0;
   background: none;
   color: inherit;
-  font: inherit;
   cursor: pointer;
 }
-.tm .star {
+.star-btn .star {
   width: 15px;
   height: 15px;
   fill: none;
@@ -1260,7 +1286,7 @@ details.sr .stand b.w {
   stroke-width: 1.6;
   stroke-linejoin: round;
 }
-.tm[aria-pressed="true"] .star {
+.star-btn[aria-pressed="true"] .star {
   fill: #f2b705;
   stroke: #a87800;
 }
@@ -1279,6 +1305,10 @@ details.sr .stand b.w {
   text-align: center;
   border-radius: 3px;
   color: var(--muted);
+}
+/* A loss is an outlined chip, so it reads as a result, not a gap. */
+.form i.L {
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 /* Wins keep the same green in both themes, like the ball chips, for white text. */
 .form i.W {
@@ -1493,6 +1523,11 @@ details.sr[open] {
   }
 }
 .foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0 12px;
   margin: 18px 4px 0;
   font-size: var(--t-cap);
   color: var(--muted);
@@ -1992,6 +2027,15 @@ details.ci.note:not([open]) .tx {
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  /* The bottom padding as a border: overflow clips at the padding box, so padding
+     would show the top of a fifth line. */
+  padding-bottom: 0;
+  border-bottom: 10px solid var(--sunk);
+}
+/* "Read more" sits under the preview: the whole note is the control. */
+details.ci.note .more-note {
+  min-height: 0;
+  padding-top: 6px;
 }
 details.ci.note[open] .more-note {
   display: none;
@@ -2664,4 +2708,135 @@ abbr[title] {
   .ph {
     padding-top: 18px;
   }
+}
+
+/* ---------- QA fixes */
+
+/* Skip link: off screen until focused. */
+.skip {
+  position: fixed;
+  z-index: 60;
+  top: 8px;
+  left: 8px;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  transform: translateY(-200%);
+}
+.skip:focus {
+  transform: none;
+}
+/* Focused items scroll clear of the top bar and the floating tab bar. */
+html {
+  scroll-padding-top: 72px;
+  scroll-padding-bottom: calc(var(--tabh) + 32px + var(--safe-b));
+}
+/* The page colour reaches the bottom of the screen on short pages. */
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+/* Focus rings inside clipped lists and cards are drawn inside, so none is cut off. */
+.list :focus-visible,
+.card.flush :focus-visible,
+details > summary:focus-visible {
+  outline-offset: -3px;
+}
+/* The toast's action. */
+.toast-act {
+  margin-left: 6px;
+  padding: 8px 4px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  cursor: pointer;
+}
+/* The commentary source switch's label. */
+.src-l {
+  margin: 0 4px 6px;
+  font-size: var(--t-cap);
+  color: var(--muted);
+}
+/* A note in a sheet: the open match isn't covered by alerts. */
+.notice-line {
+  padding: 10px 12px;
+  border-radius: var(--r-s);
+  background: color-mix(in srgb, var(--sticker) 16%, var(--surface));
+  font-size: var(--t-meta);
+}
+/* A placeholder opponent. */
+.hrow.tbc .nm {
+  color: var(--muted);
+  font-style: italic;
+  font-weight: 600;
+}
+/* Cards that open a page. */
+a.card.series-now,
+a.card.fav {
+  color: inherit;
+  text-decoration: none;
+}
+a.card.series-now {
+  display: block;
+}
+.card.fav .chev.go {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+}
+/* Commentary entries wrapped for the list role keep their separators. */
+.ci-w + .ci::before,
+.ci-w + .ci-w > .ci::before,
+.ci + .ci-w > .ci::before,
+.ov-card + .ci-w > .ci::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 68px;
+  right: 0;
+  border-top: 0.5px solid var(--line2);
+}
+/* The day/night icon at the start of a fixture row's time line. */
+.fxm .why .lt {
+  margin: 0 5px 0 0;
+  vertical-align: -2px;
+}
+
+/* A heading or section focused by the app (a new page, a revealed section) is a
+   reading position, not a control: no ring, for touch and keyboard alike. */
+[tabindex="-1"]:focus {
+  outline: none;
+}
+/* Poster: the followed team's tag on the dark band. */
+.poster .top .tag.fav {
+  margin-left: 8px;
+  vertical-align: 1px;
+  background: #f2b705;
+  color: #1b1600;
+}
+.poster .top .tag.fav i {
+  color: #1b1600;
+}
+/* "Stop following" under the IPL tab's Your team card. */
+.unfollow {
+  margin: 2px 4px 0;
+}
+/* Headings in the scorecard and squads keep their look. */
+h2.inn-t {
+  margin: 0;
+  font-size: var(--t-title);
+  font-weight: 700;
+}
+h2.grp-h {
+  margin: 0;
 }

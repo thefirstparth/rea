@@ -141,6 +141,26 @@ test("completed match centre carries a result", () => {
   assert.ok(m.header.status);
 });
 
+// Cricbuzz posts the result minutes before its state leaves "In Progress"; a side that
+// declared stays "batting" through the break. Both are settled where they are parsed.
+test("a result in the status settles the match; a declared side isn't batting", () => {
+  const raw = json("cb-comm-live.json");
+  const won = structuredClone(raw);
+  won.matchHeader.state = "In Progress";
+  won.matchHeader.status = "Pakistan won by 87 runs";
+  const h = cb.match(won).header;
+  assert.equal(h.phase, "done");
+  assert.equal(h.state, "Complete");
+  const dec = structuredClone(raw);
+  const ms = dec.miniscore;
+  const list = ms.matchScoreDetails.inningsScoreList;
+  const bat = list.find((i) => i.inningsId === ms.inningsId) ?? list.at(-1);
+  bat.isDeclared = true;
+  ms.batTeam.teamId = bat.batTeamId;
+  assert.equal(cb.match(dec).mini.batTeam, null);
+  assert.equal(cb.match(raw).mini.batTeam, raw.miniscore.batTeam.teamId);
+});
+
 test("a match centre that isn't open yet is a 404, not a crash", () => {
   assert.throws(() => cb.match(json("cb-comm-upcoming.json")), {
     status: 404,

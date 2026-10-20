@@ -153,7 +153,9 @@ The browser tests (`test/ui.test.mjs`, `test/ui-scenarios.test.mjs`, over the
 harness in `test/ui-harness.mjs`) replay `test/fixtures/ui-api.json`, recorded
 by `test/capture-ui.mjs` while following an IPL side with the World Cup tab on.
 Every view is audited for overlap, overflow, clipping, contrast, tap size and
-empty space under the page heading at 320, 390 and 1280px in light and dark. The scenarios move the clock and the
+empty space under the page heading at 320, 390 and 1280px in light and dark.
+Other tests reopen the app offline through the service worker, and feed it a
+Wi-Fi login page and an answer of the wrong shape. The scenarios move the clock and the
 data: the worst live match to lay out, the IPL tab between seasons and
 mid-season (the recorded 2026 season, half of it turned back into fixtures), and
 the World Cup tab a week before its event and under each setting.
@@ -260,12 +262,16 @@ for 60 days and emails before it does; re-enable it from the Actions tab.
   schedule and results. Settings → World Cup tab: Automatic (default: from two
   weeks before its first match to two days after its last), Always, or Off,
   stored in `crease-wc`. The next event is picked up the same way, without code.
-- **Following a team**: tap a team in a points table, or pick one in Settings
-  (IPL sides from the tables, countries from the known fixtures). Its live match
-  joins Now, its next fixture shows as "Your team" (from its Cricbuzz team page),
-  and alerts include its matches. Between IPL seasons an IPL side shows its last
+- **Following a team**: tap the star beside a team in a points table (the name
+  itself does nothing; switching teams offers Undo), or pick one in Settings (IPL
+  sides from the tables; the Test nations and leading associates by their fixed
+  Cricbuzz ids, plus any side in the known fixtures; not India, which is always
+  on Now). Its live match joins Now marked "Your team", its next fixture shows as
+  "Your team" (from its Cricbuzz team page) even while it plays, and alerts
+  include its matches. Between IPL seasons an IPL side shows its last
   finish and the next season's start. The choice is stored in `crease-team`.
-- **Alerts** (the bell): for India and IPL matches, a notification when a match
+- **Alerts** (the bell): for India and IPL matches and the followed team's (the
+  sheet names them, and says so when the open match isn't covered), a notification when a match
   starts, for each wicket (with the dismissal), when a decision is reviewed and
   again with its outcome (the outcome replaces the first), for a batter's fifty
   or hundred, and for a bowler's five-for. The bell opens a short explanation first; turning
@@ -274,11 +280,29 @@ for 60 days and emails before it does; re-enable it from the Actions tab.
   tests run in Node: opening the app never replays old events, and a wicket is
   announced once even if a slower source briefly reports the old count.
   Milestones come from the current batters' and bowlers' figures, so one reached
-  and then lost to a wicket between two polls can be missed. `public/sw.js` only
-  shows notifications and opens the match on tap; it caches nothing, is
-  installed when alerts are turned on and removed when they're turned off.
+  and then lost to a wicket between two polls can be missed.
+- **Offline**: `public/sw.js` is installed on the first visit. It shows alerts and
+  opens a tapped alert's match, and it keeps Crease's own files and the last answer
+  to each API request (up to 60, without query strings) in cache storage. Every
+  request goes to the network first, so online nothing is served from the copy;
+  offline, or when the connection stalls for 8 seconds (one bar of signal), the
+  app opens with its last scores and the top bar gives their age ("Offline" when
+  the device knows it is). Only answers the app can read are kept, so a Wi-Fi
+  login page never replaces them. About & privacy says the same.
+- **Bad answers**: anything that isn't Crease's JSON (a Wi-Fi login page, a cut-off
+  body) or has the wrong shape is a failure the page shows and retries, never data;
+  a view that still fails to render shows an error card. An answer older than the
+  one on screen (a stale CDN copy on a forced refresh) is set aside.
+- **Results settle the match**: Cricbuzz can post "X won by …" minutes before its
+  state leaves "In Progress"; the adapter reads a result in the status as finished.
+  A side that declared isn't shown batting through the break.
+- **Screen readers and keyboards**: section labels are headings, commentary is a
+  list, a polite live region announces wickets, overs, breaks and the result (not
+  every ball), focus moves to the new page's heading and back to the opened card on
+  Back, and there is a skip link.
 - Match sections replace the history entry, so Back leaves the match instead of
-  stepping through the sections visited.
+  stepping through the sections visited. Bottom tabs do the same between tabs
+  other than Now, so Back returns to Now and then leaves.
 - A failed load is kept apart from the data and retried on the next poll;
   Cricinfo enrichment is retried a minute after a failure. Fixtures more than an
   hour away aren't polled (Cricbuzz has no match centre for them yet), and an id

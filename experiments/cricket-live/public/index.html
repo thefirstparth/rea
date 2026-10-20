@@ -54,6 +54,7 @@
     <link rel="stylesheet" href="/app.css" />
   </head>
   <body>
+    <button class="skip" id="skip" type="button">Skip to content</button>
     <div id="app">
       <header class="top" id="top">
         <div class="top-in">
@@ -201,10 +202,12 @@
         </button>
       </div>
       <p>
-        A notification for India and IPL matches when a match starts, for every
-        wicket, when a decision is reviewed (and again with the outcome), for a
-        batter's fifty or hundred, and for a bowler's five-for.
+        A notification for <span id="alertsWho">India and IPL</span> matches
+        when a match starts, for every wicket, when a decision is reviewed (and
+        again with the outcome), for a batter's fifty or hundred, and for a
+        bowler's five wickets in an innings.
       </p>
+      <p id="alertsNote" class="notice-line" hidden></p>
       <p class="dim">
         Alerts arrive only while Crease is open, in a tab or as an installed
         app. Your browser asks for permission first. Crease checks the scores
@@ -228,12 +231,12 @@
         <legend>Time format</legend>
         <label class="opt"
           ><input type="radio" name="clock" value="12" /><span
-            >12-hour <small>1:30 pm</small></span
+            >12-hour <small id="clock12">1:30 pm</small></span
           ></label
         >
         <label class="opt"
           ><input type="radio" name="clock" value="24" /><span
-            >24-hour <small>13:30</small></span
+            >24-hour <small id="clock24">13:30</small></span
           ></label
         >
       </fieldset>
@@ -274,10 +277,14 @@
       <fieldset>
         <legend>Your team</legend>
         <label class="pick"
-          ><span
-            >Follow a team: its matches show on Now, and alerts include
-            them.</span
-          ><select id="teamSelect"></select
+          ><span id="teamHint"
+            >Follow a team: its matches show on Now next to India's and the
+            IPL's, and alerts include them.</span
+          ><select
+            id="teamSelect"
+            aria-label="Your team"
+            aria-describedby="teamHint"
+          ></select
         ></label>
       </fieldset>
       <a class="row-link" href="/about.html">About &amp; privacy</a>
