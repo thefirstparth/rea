@@ -50,9 +50,10 @@ self.addEventListener("fetch", (e) => {
   // Only Crease's own GETs; fonts and images from other sites go straight through.
   if (req.method !== "GET" || url.origin !== self.location.origin) return;
   const api = url.pathname.startsWith("/api/");
-  if (api && url.search) return;
-  // The page is one document whatever its hash: navigations share the "/" copy.
-  const key = req.mode === "navigate" && url.pathname === "/" ? "/" : req;
+  // Kept: API answers without a query, and the app's own files under their path (a
+  // link's ?utm_source or ?ref isn't kept). Anything else goes straight through.
+  if (api ? url.search : !SHELL.includes(url.pathname)) return;
+  const key = api ? req : url.pathname;
   e.respondWith(
     (async () => {
       try {
@@ -63,7 +64,7 @@ self.addEventListener("fetch", (e) => {
         }
         return res;
       } catch (err) {
-        const hit = await caches.match(key, { ignoreSearch: key === "/" });
+        const hit = await caches.match(key);
         if (hit) return hit;
         throw err;
       }

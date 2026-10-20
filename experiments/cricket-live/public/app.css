@@ -2027,6 +2027,15 @@ details.ci.note:not([open]) .tx {
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  /* The bottom padding as a border: overflow clips at the padding box, so padding
+     would show the top of a fifth line. */
+  padding-bottom: 0;
+  border-bottom: 10px solid var(--sunk);
+}
+/* "Read more" sits under the preview: the whole note is the control. */
+details.ci.note .more-note {
+  min-height: 0;
+  padding-top: 6px;
 }
 details.ci.note[open] .more-note {
   display: none;
@@ -2801,4 +2810,33 @@ a.card.series-now {
 .fxm .why .lt {
   margin: 0 5px 0 0;
   vertical-align: -2px;
+}
+
+/* A heading or section focused by the app (a new page, a revealed section) is a
+   reading position, not a control: no ring, for touch and keyboard alike. */
+[tabindex="-1"]:focus {
+  outline: none;
+}
+/* Poster: the followed team's tag on the dark band. */
+.poster .top .tag.fav {
+  margin-left: 8px;
+  vertical-align: 1px;
+  background: #f2b705;
+  color: #1b1600;
+}
+.poster .top .tag.fav i {
+  color: #1b1600;
+}
+/* "Stop following" under the IPL tab's Your team card. */
+.unfollow {
+  margin: 2px 4px 0;
+}
+/* Headings in the scorecard and squads keep their look. */
+h2.inn-t {
+  margin: 0;
+  font-size: var(--t-title);
+  font-weight: 700;
+}
+h2.grp-h {
+  margin: 0;
 }
