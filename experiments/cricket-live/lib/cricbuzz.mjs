@@ -439,7 +439,6 @@ function header(h) {
     series: h.seriesName ?? h.seriesDesc ?? "",
     seriesId: h.seriesId ?? null,
     start: h.matchStartTimestamp ?? null,
-    startIST: h.matchStartTimeIST ?? "",
     state: h.state ?? "",
     status: h.status ?? "",
     phase: phaseOf(h.state),

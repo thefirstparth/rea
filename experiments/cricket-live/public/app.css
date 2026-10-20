@@ -272,9 +272,22 @@ img {
   opacity: 1;
   transform: none;
 }
-.back {
+.top-left {
   grid-column: 1;
   grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.clock {
+  width: auto;
+  min-width: 44px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-family: var(--num);
+  font-weight: 700;
+  font-size: 0.98rem;
+  font-variant-numeric: tabular-nums;
 }
 .top-btns {
   grid-column: 3;

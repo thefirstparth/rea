@@ -165,6 +165,8 @@ first-`matchInfo` lookup is put back.
   match, and remembers the choice in `localStorage`.
 - Light and dark themes follow the system setting, and the moon/sun button
   overrides it.
+- Times follow the device's 12- or 24-hour clock; the 12h/24h button at the
+  top left switches every time on screen, IST included, and is remembered.
 - Page tints come from a small table of team colours keyed by Cricbuzz short
   name (`TEAM_COLOR` in `public/app.js`). A match page uses India's colour when
   India play, otherwise the home side's; teams not in the table leave the page

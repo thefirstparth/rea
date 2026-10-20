@@ -80,18 +80,39 @@ const dayFmt = new Intl.DateTimeFormat(undefined, {
   day: "numeric",
   month: "short",
 });
-const timeFmt = new Intl.DateTimeFormat(undefined, {
-  hour: "2-digit",
-  minute: "2-digit",
-});
-const fullFmt = new Intl.DateTimeFormat(undefined, {
-  weekday: "long",
-  day: "numeric",
-  month: "long",
-  hour: "2-digit",
-  minute: "2-digit",
-  timeZoneName: "short",
-});
+// Clock: the reader's choice of 12- or 24-hour times, else their locale's own.
+// Every time on screen goes through these formatters.
+let h12 = !!new Intl.DateTimeFormat(undefined, {
+  hour: "numeric",
+}).resolvedOptions().hour12;
+try {
+  const c = localStorage.getItem("crease-clock");
+  if (c === "12" || c === "24") h12 = c === "12";
+} catch {
+  // Storage blocked: keep the locale's clock.
+}
+let timeFmt, fullFmt, istFmt;
+function setClock(twelve) {
+  h12 = twelve;
+  const clock = {
+    hour: twelve ? "numeric" : "2-digit",
+    minute: "2-digit",
+    hourCycle: twelve ? "h12" : "h23",
+  };
+  timeFmt = new Intl.DateTimeFormat(undefined, clock);
+  fullFmt = new Intl.DateTimeFormat(undefined, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZoneName: "short",
+    ...clock,
+  });
+  istFmt = new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    ...clock,
+  });
+}
+setClock(h12);
 
 function dayLabel(ts) {
   const d = new Date(ts);
@@ -1085,12 +1106,6 @@ function matchTabs(id, tab, live) {
     .join("")}</nav>`;
 }
 
-const istFmt = new Intl.DateTimeFormat("en-IN", {
-  timeZone: "Asia/Kolkata",
-  hour: "numeric",
-  minute: "2-digit",
-});
-
 // Before Cricbuzz opens the match centre, show what the fixture list knows.
 // The page fills in on its own once the match centre opens (the poll keeps trying).
 function previewView(r, m) {
@@ -1344,7 +1359,7 @@ function infoTab(id, d) {
     [
       "Starts",
       h.start
-        ? fullFmt.format(h.start) + (h.startIST ? ` (${h.startIST} IST)` : "")
+        ? `${fullFmt.format(h.start)} (${istFmt.format(h.start)} IST)`
         : "",
     ],
     [
@@ -1484,6 +1499,25 @@ if (canAlert) {
   });
 }
 $("#refresh").addEventListener("click", () => refresh(true));
+function showClock() {
+  const btn = $("#clock");
+  btn.textContent = h12 ? "12h" : "24h";
+  btn.setAttribute(
+    "aria-label",
+    `Clock: ${h12 ? "12" : "24"}-hour. Switch to ${h12 ? "24" : "12"}-hour`,
+  );
+}
+showClock();
+$("#clock").addEventListener("click", () => {
+  setClock(!h12);
+  try {
+    localStorage.setItem("crease-clock", h12 ? "12" : "24");
+  } catch {
+    // Storage blocked: the choice lasts for this visit only.
+  }
+  showClock();
+  render();
+});
 $("#back").addEventListener("click", () => {
   if (cameFromList && history.length > 1) history.back();
   else location.hash = "#now";
