@@ -381,3 +381,61 @@ test(
     }
   },
 );
+
+test(
+  "results links land on India's results, not the top of the tab",
+  { skip },
+  async () => {
+    const v = await open(`#m/${next}/live`);
+    await v.page.getByRole("link", { name: "India's latest results" }).click();
+    await v.page.waitForFunction(
+      () => document.activeElement?.id === "results",
+    );
+    assert.equal(await v.page.evaluate(() => location.hash), "#india/results");
+    const top = await v.page.evaluate(
+      () => document.getElementById("results").getBoundingClientRect().top,
+    );
+    assert.ok(top > 40 && top < 120, `results heading at ${top}px`);
+    const latest = v.page.locator("details[data-default-open]").first();
+    assert.equal(await latest.evaluate((d) => d.open), true);
+    // Back returns to the match the link was followed from.
+    await v.page.goBack();
+    await v.page.waitForFunction(
+      (id) => location.hash === `#m/${id}/live`,
+      next,
+    );
+    await v.close();
+    // Opened directly, the address scrolls there too.
+    const w = await open("#india/results");
+    await w.page.waitForFunction(
+      () => document.activeElement?.id === "results",
+    );
+    await w.close();
+  },
+);
+
+test(
+  "the top bar says how fresh the data is, and tapping it refreshes",
+  { skip },
+  async () => {
+    const fresh = (v) => v.page.locator("#freshText").innerText();
+    const done_ = await open(`#m/${done}/live`);
+    assert.equal(await fresh(done_), "Final");
+    await done_.close();
+    const next_ = await open(`#m/${next}/info`);
+    assert.equal(await fresh(next_), "Not started");
+    await next_.close();
+    const v = await open("#now");
+    assert.match(await fresh(v), /^Updated (just now|\d+s ago|\d+ min ago)$/);
+    // A failed refresh turns it red and keeps the data's age.
+    await v.page.route("**/api/matches", (r) => r.abort());
+    await v.page.locator("#fresh").click();
+    await v.page.locator(".fresh.bad").waitFor();
+    assert.match(await fresh(v), /min old|s old/);
+    assert.match(
+      await v.page.locator("#fresh").getAttribute("aria-label"),
+      /^Refresh failed · .* old\. Refresh now$/,
+    );
+    await v.close();
+  },
+);

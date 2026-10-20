@@ -1,4 +1,5 @@
-// Crease client. Hash routes: #now #india #ipl #all, and #m/{id}/{live|scorecard|squads|info}.
+// Crease client. Hash routes: #now #india #ipl #all, #india/results (the India tab at its
+// results), and #m/{id}/{live|scorecard|squads|info}.
 // One poll loop refreshes whatever the current route shows; renders are morphed into the DOM
 // so live updates keep scroll, focus, images and open sections.
 
@@ -393,8 +394,26 @@ function route() {
       history.replaceState(null, "", `#m/${id}/${tab}`);
     return { kind: "match", id, tab };
   }
+  if (h === "india/results")
+    return { kind: "list", tab: "india", section: "results" };
   if (h && !LIST_TABS.includes(h)) history.replaceState(null, "", "#now");
   return { kind: "list", tab: LIST_TABS.includes(h) ? h : "now" };
+}
+
+// A section a route asks to be shown (#india/results): scrolled to and focused once it
+// has rendered, which may be a poll later.
+let reveal = null;
+function revealSection() {
+  if (!reveal) return;
+  const el = document.getElementById(reveal);
+  if (!el) {
+    // Loaded, and still no such section (India have no results listed): give up.
+    if (S.sched || S.schedErr) reveal = null;
+    return;
+  }
+  reveal = null;
+  el.scrollIntoView({ block: "start" });
+  el.focus({ preventScroll: true });
 }
 
 let lastRouteKey = "";
@@ -409,6 +428,9 @@ function onRoute() {
     cameFromList = true;
   lastRouteKey = key;
   leaving = false;
+  reveal = r.section ?? null;
+  // Asked for the results: the latest series opens even if it was closed earlier.
+  if (reveal === "results") S.closedSeries.clear();
   if (changed) {
     view.innerHTML = "";
     window.scrollTo(0, 0);
@@ -1062,7 +1084,7 @@ function homeView() {
           );
   const focus = live[0] ?? next;
   if (focus) html += currentSeries(focus);
-  return html + foot(S.list.asOf, S.listErr || S.schedErr);
+  return html + foot();
 }
 
 // India: the live or next match, recent results by series, and every series ahead.
@@ -1083,7 +1105,7 @@ function indiaView() {
       "No India fixtures listed",
       "Cricbuzz hasn't published India's next matches yet.",
     );
-  return html + foot(S.list.asOf, S.listErr || S.schedErr);
+  return html + foot();
 }
 
 function iplView() {
@@ -1098,7 +1120,7 @@ function iplView() {
   if (done.length)
     html += `<div class="sec" data-k="rh"><span>Results</span></div><div class="list" data-k="rl">${done.map(row).join("")}</div>`;
   if (!live.length && !upcoming("ipl").length) html += iplLatest();
-  return html + foot(S.list.asOf, S.listErr || S.schedErr, !!S.ipl);
+  return html + foot();
 }
 
 // All live order: India and IPL first, then internationals, leagues, domestic.
@@ -1263,11 +1285,12 @@ function groupSeries(fixtures) {
 const FORMAT_LABEL = { T20: "T20I", ODI: "ODI", TEST: "Test" };
 const BILATERAL = /^(\d+(st|nd|rd|th)|One-off) (T20I|ODI|Test)$/;
 
-// "5 T20Is · 5 ODIs · 2 Tests" for a bilateral series, "5 matches" for a tournament.
-function composition(fixtures) {
+// "5 T20Is · 5 ODIs · 2 Tests" for a bilateral series, "5 matches" for a tournament
+// ("5 India matches" when `side` names whose games these are).
+function composition(fixtures, side = "") {
   const n = fixtures.length;
   if (!fixtures.every((m) => BILATERAL.test(m.desc)))
-    return `${n} match${n > 1 ? "es" : ""}`;
+    return `${n} ${side ? `${side} ` : ""}match${n > 1 ? "es" : ""}`;
   const counts = new Map();
   for (const m of fixtures) {
     const f = FORMAT_LABEL[m.format] ?? m.format;
@@ -1289,13 +1312,14 @@ function outcome(m) {
 }
 
 // "1st ODI" → "1"; knockouts by their stage; other tournament games by their order.
+// Knockout stages first: "2nd Quarter-Final" is a QF, not match 2.
 function matchNo(m, i) {
-  const n = m.desc.match(/^(\d+)(st|nd|rd|th)\b/);
-  if (n) return n[1];
-  if (/^one-off/i.test(m.desc)) return "1";
   if (/semi/i.test(m.desc)) return "SF";
   if (/quarter/i.test(m.desc)) return "QF";
   if (/final|medal/i.test(m.desc)) return "F";
+  const n = m.desc.match(/^(\d+)(st|nd|rd|th)\b/);
+  if (n) return n[1];
+  if (/^one-off/i.test(m.desc)) return "1";
   return String(i + 1);
 }
 
@@ -1418,7 +1442,7 @@ function currentSeries(focus) {
       ${latest ? `<div class="latest"><span class="lbl">Latest</span>${esc(`${latest.desc}: ${latest.status}`)}</div>` : ""}
     </div>
     ${ahead.length ? `<div class="sec" data-k="cah"><span>Then</span></div><div class="list" data-k="csl">${ahead.map((m) => fixtureRow(m)).join("")}</div>` : ""}
-    <a class="to-tab" data-k="cslink" href="#${tab}">${tab === "ipl" ? "All IPL fixtures and results" : "India's results and every series ahead"} →</a>`;
+    <a class="to-tab" data-k="cslink" href="#${tab === "india" ? "india/results" : tab}">${tab === "ipl" ? "All IPL fixtures and results" : "India's results and every series ahead"} →</a>`;
 }
 
 // India's recent results, freshest first: the live list's finished matches, then the
@@ -1443,7 +1467,7 @@ function indiaResultsSection() {
       "Cricbuzz didn't answer. Crease tries again every half hour.",
     );
   if (!results.length) return "";
-  return `<div class="sec" data-k="rh"><span>Recent series</span></div><div class="list" data-k="rl">${groupSeries(
+  return `<div class="sec" id="results" tabindex="-1" data-k="rh"><span>Recent series</span></div><div class="list" data-k="rl">${groupSeries(
     results,
   )
     .map((g, i) => resultsRow(g, i === 0))
@@ -1465,13 +1489,29 @@ function resultsRow(g, latest = false) {
   </details>`;
 }
 
+// "Sri Lanka tour of India, 2026" → "Sri Lanka tour of India": the dates carry the year.
+const withoutYear = (name) =>
+  name.replace(/,?\s+\d{4}(-\d{2,4})?$/, "") || name;
+
+// "27 Feb", or "27 Feb 2027" when it isn't this year.
+const dayMonth = (ts) =>
+  (new Date(ts).getFullYear() === new Date().getFullYear()
+    ? shortDate
+    : yearDate
+  ).format(ts);
+
+// A series to come: its start as a calendar tile, then what it holds and when it ends.
 function seriesRow(g) {
   const first = g.fixtures[0];
   const last = g.fixtures.at(-1);
   const open = S.openSeries.has(g.id);
-  return `<details class="sr" data-k="sr${esc(g.id)}" data-series="${esc(g.id)}"${open ? " open" : ""}>
-    <summary><div><div class="nm">${esc(g.name)}</div><div class="sub">${esc(dateRange(first.start, last.start))} · ${esc(composition(g.fixtures))} to play</div></div>
-      <div class="nx">${first.start ? esc(dayLabel(first.start)) : ""}<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></div></summary>
+  const until =
+    last.start && dayMonth(last.start) !== dayMonth(first.start)
+      ? ` · until ${dayMonth(last.start)}`
+      : "";
+  return `<details class="sr ahead" data-k="sr${esc(g.id)}" data-series="${esc(g.id)}"${open ? " open" : ""}>
+    <summary>${calTile(first.start)}<div><div class="nm">${esc(withoutYear(g.name))}</div><div class="sub">${first.start ? `<span class="vh">From ${esc(fullFmt.format(first.start))}: </span>` : ""}${esc(composition(g.fixtures, sideOf(first)))}${esc(until)}</div></div>
+      <div class="nx"><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></div></summary>
     ${fixtureList(g.fixtures)}
   </details>`;
 }
@@ -1517,15 +1557,10 @@ function errorCard(msg, what = "scores") {
   return `<div class="empty" data-k="err"><b class="err">Couldn't load ${esc(what)}</b><span>${esc(sentence(msg))} Crease tries again every 15 seconds.</span><span><button class="btn" type="button" data-act="retry">Try again now</button></span></div>`;
 }
 
-// When the data on screen was fetched, a way to refresh it, and where to read about
-// sources and privacy. After a failed refresh it says the data is from the last success.
-function foot(asOf = S.list?.asOf, err = S.listErr) {
-  if (!asOf) return "";
-  const when = err
-    ? `<span class="err">Couldn't refresh. ${esc(sentence(err))}</span> Showing data from ${esc(ago(asOf))}`
-    : `Updated ${esc(ago(asOf))}`;
-  return `<p class="foot" data-k="foot">${when} · <button class="link" type="button" data-act="retry">Refresh</button> · <a class="link" href="/about.html">About &amp; privacy</a></p>`;
-}
+// Where to read about sources and privacy. How fresh the data is, and refreshing it,
+// live in the top bar (freshness()).
+const foot = () =>
+  '<p class="foot" data-k="foot"><a class="link" href="/about.html">About &amp; privacy</a></p>';
 
 // ---------- match view
 
@@ -1615,7 +1650,7 @@ function matchView(r) {
   else if (r.tab === "scorecard") body = scorecardTab(id, h);
   else if (r.tab === "squads") body = squadsTab(id);
   else body = infoTab(id, d);
-  return `${heroHtml}${seg}<div data-k="body-${r.tab}">${body}</div>${foot(d.asOf, err)}`;
+  return `${heroHtml}${seg}<div data-k="body-${r.tab}">${body}</div>${foot()}`;
 }
 
 // The first section is "Commentary" in every phase: one name for one place.
@@ -1672,7 +1707,7 @@ function previewView(r, m) {
   else
     body = empty(
       "Not started yet",
-      `This match ${esc(start)}. Commentary and the scorecard begin at the toss; squads appear once they're named. Meanwhile: <a class="link" href="#all">see what's live now</a> or <a class="link" href="#india">India's latest results</a>.`,
+      `This match ${esc(start)}. Commentary and the scorecard begin at the toss; squads appear once they're named. Meanwhile: <a class="link" href="#all">see what's live now</a> or <a class="link" href="#india/results">India's latest results</a>.`,
       true,
     );
   return `${hero}${matchTabs(r.id, r.tab)}<div data-k="body-${r.tab}">${body}</div>`;
@@ -2093,6 +2128,107 @@ function cricinfoInfo(id) {
     ${ci.link ? `<a class="to-tab" data-k="cilink" href="${esc(ci.link)}" target="_blank" rel="noopener noreferrer">Open this match on ESPNcricinfo (new tab) →</a>` : ""}`;
 }
 
+// ---------- freshness (the top bar's second line)
+
+// What the reader is looking at, how old it is, and whether it can still change:
+// grey while fine, amber once a minute has passed without new data (normal polling
+// and caching stay under that), red when refreshing fails, no timer when nothing will
+// change (a break, a finished or unstarted match). Ages are from when Crease fetched
+// the data from its source (asOf).
+const FRESH_WARN = 60000;
+let checking = false;
+
+function viewData(r) {
+  if (r.kind === "list") return { asOf: S.list?.asOf, err: S.listErr };
+  const d = S.match.get(r.id);
+  const h = d?.header ?? summaryOf(r.id);
+  const still = !h
+    ? ""
+    : h.phase === "done"
+      ? "Final"
+      : h.phase === "upcoming"
+        ? "Not started"
+        : paused(h)
+          ? stateWord(h)
+          : "";
+  // Before Cricbuzz opens the match centre the page is the fixture from the lists;
+  // its "not found" is expected, not a failed refresh.
+  if (!d) return { asOf: S.list?.asOf, err: S.listErr, still };
+  // The scorecard has its own fetch time, which can trail the live score.
+  if (r.tab === "scorecard")
+    return { asOf: S.card.get(r.id)?.asOf, err: S.cardErr.get(r.id), still };
+  return { asOf: d.asOf, err: S.matchErr.get(r.id), still };
+}
+
+const minsOld = (ms) => {
+  const m = Math.round(ms / 60000);
+  return m < 1 ? `${Math.max(1, Math.round(ms / 1000))}s old` : `${m} min old`;
+};
+
+function freshness(r) {
+  if (checking) return { cls: "spin", text: "Checking…" };
+  const { asOf, err, still } = viewData(r);
+  const offline = navigator.onLine === false;
+  if (!asOf)
+    return err ? { cls: "bad", text: offline ? "Offline" : "Retrying" } : null;
+  // Narrow screens keep the short part: "Offline", or the data's age in red.
+  if (err)
+    return offline
+      ? {
+          cls: "bad",
+          text: "Offline",
+          more: ` · ${minsOld(Date.now() - asOf)}`,
+        }
+      : {
+          cls: "bad",
+          lead: "Refresh failed · ",
+          text: minsOld(Date.now() - asOf),
+        };
+  if (still) return { cls: "", text: still, asOf };
+  // On narrow screens the line drops its first word: "18s ago".
+  return {
+    cls: Date.now() - asOf > FRESH_WARN ? "old" : "",
+    lead: "Updated ",
+    text: ago(asOf),
+    asOf,
+  };
+}
+
+let shownAsOf = null;
+function showFreshness(r) {
+  const f = freshness(r);
+  const line = $("#freshLine");
+  line.hidden = !f;
+  const words = f ? `${f.lead ?? ""}${f.text}${f.more ?? ""}` : "";
+  $("#fresh").setAttribute(
+    "aria-label",
+    words ? `${words}. Refresh now` : "Refresh now",
+  );
+  if (!f) return;
+  $("#freshText").innerHTML =
+    `${f.lead ? `<span class="fx">${esc(f.lead)}</span>` : ""}${esc(f.text)}${f.more ? `<span class="fx">${esc(f.more)}</span>` : ""}`;
+  const tick = f.asOf && shownAsOf && f.asOf !== shownAsOf;
+  if (f.asOf) shownAsOf = f.asOf;
+  line.className = `fresh${f.cls ? ` ${f.cls}` : ""}`;
+  // New data: the dot blinks once.
+  if (tick) {
+    void line.offsetWidth;
+    line.classList.add("tick");
+  }
+}
+
+async function refreshNow() {
+  if (checking) return;
+  checking = true;
+  render();
+  try {
+    await refresh(true);
+  } finally {
+    checking = false;
+    render();
+  }
+}
+
 // ---------- render
 
 // Tints the top of the page with the view's team colour; see TEAM_COLOR.
@@ -2140,12 +2276,14 @@ function render() {
         : "Match"
       : headingOf(r.tab);
   $("#topTitle").textContent = title;
+  showFreshness(r);
   document.title =
     r.kind === "match" && d
       ? `${title} · ${d.header.status} · Crease`
       : title
         ? `${title} · Crease`
         : "Crease";
+  revealSection();
 }
 
 // ---------- events
@@ -2163,6 +2301,8 @@ function onScroll() {
   );
 }
 addEventListener("scroll", onScroll, { passive: true });
+$("#fresh").addEventListener("click", refreshNow);
+
 // Back online: refresh now rather than at the next poll.
 addEventListener("online", () => refresh(true));
 document.addEventListener("visibilitychange", () => {

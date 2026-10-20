@@ -21,6 +21,9 @@
   --extra: #9a6a00;
   /* Extras text on its own 20% tint: darker than the tint's colour, for contrast. */
   --extra-ink: #7a5300;
+  /* Freshness warnings on their own light tints. */
+  --warn-ink: #7a4d00;
+  --bad-ink: #a8201a;
   --glass: color-mix(in oklab, var(--surface) 92%, transparent);
   --glass-edge: rgba(0, 0, 0, 0.12);
   --glass-rim: rgba(255, 255, 255, 0.7);
@@ -143,6 +146,8 @@
   --wkt: #ff7169;
   --extra: #e8c15a;
   --extra-ink: #e8c15a;
+  --warn-ink: #f5c25a;
+  --bad-ink: #ff7169;
   --glass: color-mix(in oklab, #1c1c1f 94%, transparent);
   --glass-edge: rgba(255, 255, 255, 0.12);
   --glass-rim: rgba(255, 255, 255, 0.1);
@@ -255,29 +260,103 @@ img {
 .top-in {
   height: 48px;
   display: grid;
-  grid-template-columns: 116px 1fr 116px;
+  /* Equal sides keep the middle (title and freshness) centred at its own width. */
+  grid-template-columns: minmax(96px, 1fr) minmax(0, auto) minmax(96px, 1fr);
   align-items: center;
   padding: 0 calc(var(--gut) - 6px);
   max-width: 720px;
   margin: 0 auto;
 }
-.top-title {
+/* The middle of the top bar: one button, so the whole of it refreshes on tap. The
+   page title shows above the freshness line once the page has scrolled. */
+.top-mid {
   grid-column: 2;
-  text-align: center;
+  grid-row: 1;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.top-title {
+  max-width: 100%;
+  max-height: 0;
   font-weight: 650;
   font-size: var(--t-body);
+  line-height: 1.25;
   opacity: 0;
-  transform: translateY(4px);
-  transition:
-    opacity 0.2s var(--spring-fx),
-    transform 0.35s var(--spring);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition:
+    max-height 0.25s var(--spring-fx),
+    opacity 0.2s var(--spring-fx);
 }
 .top.solid .top-title {
+  max-height: 1.3em;
   opacity: 1;
-  transform: none;
+}
+/* Grey while fine; amber once a minute old; red when refreshing fails. */
+.fresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fresh i {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.55;
+}
+.fresh.tick i {
+  animation: blink 1.2s ease-out;
+}
+@keyframes blink {
+  0%,
+  40% {
+    opacity: 1;
+    background: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+}
+.fresh.spin i {
+  opacity: 1;
+  background: var(--accent);
+  animation: pulse 1s ease-in-out infinite;
+}
+.fresh.old {
+  color: var(--warn-ink);
+  background: color-mix(in srgb, #f5a623 14%, transparent);
+}
+.fresh.bad {
+  color: var(--bad-ink);
+  background: color-mix(in srgb, var(--live) 10%, transparent);
+}
+.fresh.old i,
+.fresh.bad i {
+  opacity: 1;
 }
 .top-left {
   grid-column: 1;
@@ -885,6 +964,14 @@ details.sr > summary {
   gap: 10px;
   align-items: center;
   padding: 12px 14px;
+}
+/* A series ahead leads with its start date as a calendar tile. */
+details.sr.ahead > summary {
+  grid-template-columns: 46px 1fr auto;
+  gap: 12px;
+}
+.list > details.sr.ahead + details.sr.ahead::before {
+  left: 72px;
 }
 details.sr > summary::-webkit-details-marker {
   display: none;
@@ -1764,6 +1851,14 @@ a.rc:active {
   transform: scale(0.96);
 }
 
+/* A section a link lands on (#india/results) clears the top bar when scrolled to. */
+#results {
+  scroll-margin-top: calc(var(--safe-t) + 60px);
+}
+#results:focus:not(:focus-visible) {
+  outline: none;
+}
+
 /* Home: the series the live or next match belongs to */
 .series-now .nm {
   font-weight: 700;
@@ -2101,6 +2196,14 @@ abbr[title] {
 @media (max-width: 360px) {
   :root {
     --n-hero: 2.1rem;
+  }
+  .brand {
+    gap: 6px;
+    padding: 0 2px;
+  }
+  /* "18s ago", "Offline": the short form of the freshness line. */
+  .fresh .fx {
+    display: none;
   }
   .tbl th:not(:first-child),
   .tbl td.n {
