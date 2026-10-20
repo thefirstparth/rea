@@ -1,28 +1,37 @@
-/* Crease. Lineage: the House of 1400 Sport app. Content flat and opaque; glass only on floating chrome.
-   Numerals are the hero type (Barlow Condensed). Every match row is one grid so scores and dividers line up. */
+/* Crease. Lineage: the House of 1400 Sport app, with die-cut stickers for the one object on each screen
+   that matters (the score, the next match) and a page tint taken from the match's team colour.
+   Content flat and opaque; glass only on floating chrome. Numerals are the hero type (Barlow Condensed).
+   Every match row is one grid so scores and dividers line up. */
 :root {
   --bg: #f3f3f5;
   --surface: #fff;
-  --sunk: #ececf0;
-  --ink: #0c0c0e;
-  --ink2: #3b3b41;
-  --muted: #6a6a72;
-  --line2: rgba(12, 12, 14, 0.12);
-  --line: rgba(12, 12, 14, 0.22);
+  --sunk: #eef0f6;
+  --ink: #0e1330;
+  --ink2: #2f3654;
+  --muted: #4a5170;
+  --line2: rgba(14, 19, 48, 0.1);
+  --line: rgba(14, 19, 48, 0.2);
   --live: #dc2a1f;
   --win: #147a40;
-  --accent: #0a6cb4;
+  --accent: #2442e8;
   --ipl: #4a2fb0;
-  --four: #0a6cb4;
+  --four: #2442e8;
   --six: #7a2fc0;
   --wkt: #c22a23;
   --extra: #9a6a00;
   --glass: color-mix(in oklab, var(--surface) 80%, transparent);
   --glass-edge: rgba(0, 0, 0, 0.12);
   --glass-rim: rgba(255, 255, 255, 0.7);
+  /* Stickers: a cobalt card for the score, tangerine labels for state, a die-cut edge. */
+  --cobalt: #2442e8;
+  --sticker: #ff6a2b;
+  --on-sticker: #0e1330;
+  --die: #fff;
+  --lift: 0 14px 30px rgba(14, 19, 48, 0.14);
+  --scene-mix: 20%;
   --sans:
-    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable",
-    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    "Bricolage Grotesque", -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "Segoe UI Variable", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --num: "Barlow Condensed", var(--sans);
   --t-display: 1.88rem;
   --t-title: 1.18rem;
@@ -121,15 +130,18 @@
   --line: rgba(255, 255, 255, 0.26);
   --live: #ff5248;
   --win: #4bd389;
-  --accent: #64adf2;
+  --accent: #8fa2ff;
   --ipl: #a99bff;
-  --four: #64adf2;
+  --four: #5b73ff;
   --six: #c99bff;
   --wkt: #ff7169;
   --extra: #e8c15a;
   --glass: color-mix(in oklab, #1c1c1f 82%, transparent);
   --glass-edge: rgba(255, 255, 255, 0.12);
   --glass-rim: rgba(255, 255, 255, 0.1);
+  --die: #262a3a;
+  --lift: 0 14px 30px rgba(0, 0, 0, 0.5);
+  --scene-mix: 26%;
 }
 * {
   box-sizing: border-box;
@@ -142,7 +154,16 @@ html {
 }
 body {
   margin: 0;
-  background: var(--bg);
+  /* --scene is the match's team colour, set per view; without one the page stays plain. */
+  background:
+    linear-gradient(
+        180deg,
+        color-mix(in oklab, var(--scene, var(--bg)) var(--scene-mix), var(--bg))
+          0,
+        var(--bg) 460px
+      )
+      no-repeat,
+    var(--bg);
   color: var(--ink);
   font-family: var(--sans);
   font-size: var(--t-body);
@@ -346,8 +367,7 @@ main {
   left: 5px;
   width: calc((100% - 10px) / var(--n, 4));
   border-radius: 999px;
-  background: color-mix(in srgb, var(--ink) 9%, transparent);
-  box-shadow: inset 0 0 0 0.5px var(--line2);
+  background: var(--cobalt);
   transform: translateX(calc(var(--ti, 0) * 100%));
   transition:
     transform 0.5s var(--spring),
@@ -381,7 +401,7 @@ main {
   transition: transform 0.4s var(--spring-fast);
 }
 .tabs a[aria-current] {
-  color: var(--ink);
+  color: #fff;
 }
 .tabs a:active svg {
   transform: scale(0.88);
@@ -405,8 +425,8 @@ main {
   margin: 0;
   font-size: var(--t-display);
   line-height: 1.1;
-  font-weight: 760;
-  letter-spacing: -0.02em;
+  font-weight: 800;
+  letter-spacing: -0.03em;
 }
 .ph p {
   margin: 4px 0 0;
@@ -507,9 +527,8 @@ main {
 .list + .card,
 .card + .list,
 .hero + .list,
-.hero + .card,
-.hero + .hero {
-  margin-top: 10px;
+.hero + .card {
+  margin-top: 16px;
 }
 
 /* match row: status track | teams+scores */
@@ -634,21 +653,57 @@ main {
   font-size: 0.62rem;
 }
 
+/* Sticker: a die-cut card with a tangerine state label stuck on its corner. */
+.hero,
+.mhero {
+  position: relative;
+  margin: 5px 0;
+  box-shadow:
+    0 0 0 5px var(--die),
+    var(--lift);
+}
+.sec + .hero,
+.hero + .hero,
+.mhero {
+  margin-top: 22px;
+}
+.stk {
+  position: absolute;
+  top: -14px;
+  right: -6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 12px;
+  background: var(--sticker);
+  color: var(--on-sticker);
+  font-weight: 800;
+  font-size: var(--t-body);
+  white-space: nowrap;
+  box-shadow:
+    0 0 0 3px var(--die),
+    0 6px 14px rgba(14, 19, 48, 0.2);
+  transform: rotate(4deg);
+}
+.stk i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
 /* hero: a live match on a list page */
 .hero {
   display: block;
-  position: relative;
   padding: 14px 16px 16px;
   border-radius: var(--r);
   background: var(--surface);
-  box-shadow: 0 0 0 0.5px var(--line2);
   transition: transform 0.3s var(--spring-fast);
 }
 .hero:active {
   transform: scale(0.985);
-}
-.hero.is-live:not(.paused) {
-  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--live) 70%, transparent);
 }
 .hero .meta {
   display: flex;
@@ -663,7 +718,6 @@ main {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.hero .meta .live,
 .hero .meta .tag {
   flex: none;
 }
@@ -717,6 +771,9 @@ main {
 .hero.is-live:not(.paused) .status {
   color: var(--live);
 }
+.hero .meta {
+  padding-right: 64px;
+}
 
 /* next match + series ahead */
 .hero.next .rows {
@@ -737,7 +794,7 @@ main {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.when span:last-child {
+.when > span:last-child {
   font-size: var(--t-meta);
   font-weight: 600;
   color: var(--ink2);
@@ -866,15 +923,27 @@ details.sr[open] {
 }
 
 /* ---------- match page */
+/* The score is the sticker: cobalt, with every token inside retuned for white type. */
 .mhero {
+  --ink: #fff;
+  --ink2: #e7ebff;
+  --muted: #c9d2ff;
+  --live: #fff;
+  --sunk: rgba(255, 255, 255, 0.16);
+  --line2: rgba(255, 255, 255, 0.22);
+  --accent: #fff;
   padding: 14px 16px 16px;
   border-radius: var(--r);
-  background: var(--surface);
-  box-shadow: 0 0 0 0.5px var(--line2);
-  margin-bottom: 12px;
+  background: var(--cobalt);
+  color: var(--ink);
+  margin-bottom: 16px;
 }
-.mhero.is-live:not(.paused) {
-  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--live) 70%, transparent);
+.mhero .series {
+  padding-right: 72px;
+}
+.mhero .tag {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
 }
 .mhero h1 {
   margin: 6px 0 0;
@@ -898,9 +967,6 @@ details.sr[open] {
 .mhero .status {
   font-size: var(--t-body);
   font-weight: 650;
-}
-.mhero.is-live:not(.paused) .status {
-  color: var(--live);
 }
 .mhero .eq {
   display: flex;
@@ -962,10 +1028,11 @@ details.sr[open] {
   display: grid;
   place-items: center;
   min-height: 38px;
-  padding: 0 8px;
+  padding: 0 2px;
   border-radius: 999px;
   font-size: var(--t-meta);
   font-weight: 650;
+  letter-spacing: -0.01em;
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
@@ -975,6 +1042,14 @@ details.sr[open] {
 .seg [aria-current="true"],
 .seg [aria-pressed="true"] {
   color: var(--ink);
+}
+/* Match sections: the cobalt pill matches the bottom tabs. Sub-switches stay neutral. */
+.seg:not(.sub) .thumb {
+  background: var(--cobalt);
+  box-shadow: none;
+}
+.seg:not(.sub) [aria-current="true"] {
+  color: #fff;
 }
 .seg.sub {
   position: relative;
@@ -1196,6 +1271,13 @@ details.inn[open] > summary .inn-h {
   background: var(--wkt);
   color: #fff;
 }
+.b.f4,
+.b.f6,
+.b.w {
+  box-shadow:
+    0 0 0 2px var(--die),
+    0 2px 6px rgba(14, 19, 48, 0.18);
+}
 .b.x {
   background: color-mix(in srgb, var(--extra) 20%, transparent);
   color: var(--extra);
@@ -1328,6 +1410,79 @@ details.inn[open] > summary .inn-h {
 }
 .more:disabled {
   color: var(--muted);
+}
+
+/* a series as one mark per match: circles for white-ball games, squares for Tests */
+.fx {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  margin-top: 7px;
+}
+.fx i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--line);
+}
+.fx i.t {
+  border-radius: 3px;
+}
+.fx i.next {
+  box-shadow: inset 0 0 0 2.5px var(--accent);
+}
+.fx i.gap {
+  width: 4px;
+  box-shadow: none;
+}
+.fx small {
+  margin-left: 4px;
+  font-size: var(--t-cap);
+  color: var(--muted);
+}
+
+/* fall of wickets in the batting innings, latest stuck on */
+.fowx {
+  padding: 12px 14px 14px;
+  border-top: 0.5px solid var(--line2);
+}
+.fowx .lbl {
+  font-size: var(--t-cap);
+  color: var(--muted);
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.fowx ol {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(46px, 1fr));
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.fowx li {
+  display: grid;
+  justify-items: center;
+  padding: 5px 0;
+  border-radius: 10px;
+  background: var(--sunk);
+  font-size: 0.66rem;
+  font-weight: 650;
+  color: var(--muted);
+}
+.fowx li b {
+  font-family: var(--num);
+  font-size: 1.05rem;
+  color: var(--ink);
+}
+.fowx li.last {
+  background: var(--sticker);
+  color: var(--on-sticker);
+}
+.fowx li.last b {
+  color: var(--on-sticker);
 }
 
 /* squads */

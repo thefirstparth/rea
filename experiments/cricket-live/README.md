@@ -1,7 +1,9 @@
 # Crease: live cricket for India and the IPL
 
 A small live-score web app built from Cricbuzz and Cricinfo data, styled after the
-House of 1400 Sport app. It shows live scores, ball-by-ball commentary, full
+House of 1400 Sport app with a sticker layer: the score or next match is a
+die-cut card with a tangerine state label (Live, Stumps, a countdown), and the
+top of each page takes the colour of the team it follows. It shows live scores, ball-by-ball commentary, full
 scorecards, squads and match info for India sides and the IPL. An **All live**
 tab lists every other match in progress.
 
@@ -163,6 +165,12 @@ first-`matchInfo` lookup is put back.
   match, and remembers the choice in `localStorage`.
 - Light and dark themes follow the system setting, and the moon/sun button
   overrides it.
+- Page tints come from a small table of team colours keyed by Cricbuzz short
+  name (`TEAM_COLOR` in `public/app.js`). A match page uses India's colour when
+  India play, otherwise the home side's; teams not in the table leave the page
+  plain.
+- The live tab also loads the scorecard so it can show the batting side's fall
+  of wickets.
 
 ## Limits
 
