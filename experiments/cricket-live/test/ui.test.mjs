@@ -341,6 +341,8 @@ function worstCase() {
   );
   row.t1.name = a.name;
   row.t2.name = b.name;
+  // Followed, so it is live on the Now and India tabs: the tab bar's Live stickers show.
+  row.tags = ["india"];
   row.s1 = [
     { r: 528, w: 8, dec: true, o: 151 },
     { r: 210, w: 4, o: 63.4 },
@@ -361,7 +363,12 @@ test(
           [412, 915],
           [1280, 800],
         ].flatMap(([width, height]) =>
-          [`#m/${live}/live`, "#all"].map((r) => ({ r, width, height, theme })),
+          [`#m/${live}/live`, "#all", "#now"].map((r) => ({
+            r,
+            width,
+            height,
+            theme,
+          })),
         ),
       );
       for (const { r, ...at } of views) {
@@ -381,6 +388,12 @@ test(
       assert.match(text, /Overturned · not out/);
       assert.match(text, /Reviews left/i);
       assert.equal(await v.page.locator(".ci .b.drs").count(), 4);
+      assert.deepEqual(
+        await v.page
+          .locator("#tabs .lv")
+          .evaluateAll((els) => els.map((e) => e.closest("a").dataset.tab)),
+        ["now", "india"],
+      );
       // Flash notes and the review notes are folded into their deliveries.
       assert.doesNotMatch(text, /THATS OUT!!/);
       await v.close();

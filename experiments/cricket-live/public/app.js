@@ -2286,12 +2286,13 @@ function render() {
       a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
     const hasLive = pick(a.dataset.tab).some((m) => m.phase === "live");
-    let dot = a.querySelector(".dot");
-    if (hasLive && a.dataset.tab !== "all" && !dot) {
-      dot = document.createElement("i");
-      dot.className = "dot";
-      a.append(dot);
-    } else if (!hasLive && dot) dot.remove();
+    let lv = a.querySelector(".lv");
+    if (hasLive && a.dataset.tab !== "all" && !lv) {
+      lv = document.createElement("b");
+      lv.className = "lv";
+      lv.textContent = "Live";
+      a.append(lv);
+    } else if (!hasLive && lv) lv.remove();
   }
   $("#back").hidden = r.kind !== "match";
   $("#brand").hidden = r.kind === "match";

@@ -458,15 +458,20 @@ main {
     0 0 0 0.5px var(--glass-edge),
     0 10px 30px -10px rgba(0, 0, 0, 0.3);
 }
+/* The current tab is a die-cut sticker, slapped on at a tilt: it lifts, slides and
+   lands on the next tab (the spring's overshoot is the slap). */
 .tab-pill {
   position: absolute;
   top: 5px;
   bottom: 5px;
   left: 5px;
   width: calc((100% - 10px) / var(--n, 4));
-  border-radius: 999px;
+  border-radius: 20px;
   background: var(--cobalt);
-  transform: translateX(calc(var(--ti, 0) * 100%));
+  box-shadow:
+    0 0 0 3px var(--die),
+    0 6px 14px rgba(14, 19, 48, 0.28);
+  transform: translateX(calc(var(--ti, 0) * 100%)) rotate(-4deg) scale(1.04);
   transition:
     transform 0.5s var(--spring),
     opacity 0.2s;
@@ -502,21 +507,55 @@ main {
   fill: currentColor;
   stroke: none;
 }
+/* India's flag in its own colours, the IPL trophy in gold, selected or not. */
+.tabs a svg .tri-s {
+  fill: #ff9933;
+  stroke: none;
+}
+.tabs a svg .tri-w {
+  fill: #fff;
+  stroke: none;
+}
+.tabs a svg .tri-g {
+  fill: #138808;
+  stroke: none;
+}
+.tabs a svg .tri-c {
+  stroke: #000080;
+  stroke-width: 0.9;
+}
+.tabs a svg .gold {
+  fill: #f2b705;
+  stroke: #a87800;
+}
+.tabs a[aria-current] svg .gold {
+  stroke: #fff;
+}
 .tabs a[aria-current] {
   color: #fff;
+}
+.tabs a[aria-current] span {
+  font-weight: 800;
 }
 .tabs a:active svg {
   transform: scale(0.88);
 }
-.tabs .dot {
+/* Something is live in this tab: a tangerine sticker stuck on its corner. */
+.tabs .lv {
   position: absolute;
-  top: 9px;
-  left: calc(50% + 9px);
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--live);
-  box-shadow: 0 0 0 2px var(--surface);
+  top: -8px;
+  left: calc(50% + 4px);
+  padding: 1px 6px;
+  border-radius: 7px;
+  background: var(--sticker);
+  color: var(--on-sticker);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  transform: rotate(8deg);
+  box-shadow:
+    0 0 0 2px var(--die),
+    0 3px 8px rgba(14, 19, 48, 0.25);
 }
 
 /* ---------- page headings */
