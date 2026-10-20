@@ -657,14 +657,60 @@ function row(m) {
   </a>`;
 }
 
-// A fixture inside its series group: the header already names the series, so one line
-// says which match and where, and one says who plays. No scores yet, so no score column.
-function fixtureRow(m) {
-  const place = m.venue?.city || m.venue?.ground || "";
-  return `<a class="mr fxr" data-k="r${m.id}" href="#m/${m.id}/info">
-    <div class="st">${statusTrack(m)}</div>
-    <div><div class="nm">${esc([m.desc, place].filter(Boolean).join(" · "))}</div><div class="why">${esc(`${m.t1.name} v ${m.t2.name}`)}</div></div>
+const calDay = new Intl.DateTimeFormat(undefined, { day: "numeric" });
+const calWeek = new Intl.DateTimeFormat(undefined, { weekday: "short" });
+const calMonth = new Intl.DateTimeFormat(undefined, { month: "short" });
+
+// A tear-off calendar date: weekday, day, month.
+const calTile = (ts) =>
+  ts
+    ? `<span class="cal" aria-hidden="true"><small>${esc(calWeek.format(ts))}</small><b>${esc(calDay.format(ts))}</b><small>${esc(calMonth.format(ts))}</small></span>`
+    : '<span class="cal" aria-hidden="true"></span>';
+
+// A fixture inside a series or "Then" list: a calendar date, the match and city, then
+// start time and ground (or the teams, when the series has more than one pairing).
+// The series' next match carries its countdown as a sticker.
+function fixtureRow(m, { next = false, teams = false } = {}) {
+  const city = m.venue?.city || "";
+  const detail = [
+    m.start ? timeFmt.format(m.start) : "",
+    teams ? `${m.t1.short} v ${m.t2.short}` : m.venue?.ground || "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const label = [m.start ? fullFmt.format(m.start) : "", m.desc, city]
+    .filter(Boolean)
+    .join(", ");
+  return `<a class="mr fxr${next ? " is-next" : ""}" data-k="r${m.id}" href="#m/${m.id}/info" aria-label="${esc(label)}">
+    ${calTile(m.start)}
+    <div class="fxm"><div class="nm">${esc([m.desc, city].filter(Boolean).join(" · "))}</div><div class="why">${esc(detail)}</div></div>
+    ${next && m.start ? `<span class="chip-next">${esc(countdown(m.start))}</span>` : ""}
   </a>`;
+}
+
+// Fixture rows for one series, with a small heading where the format changes
+// (T20Is, then ODIs, then Tests) and the next match marked.
+function fixtureList(fixtures) {
+  const teams =
+    new Set(fixtures.map((m) => [m.t1.name, m.t2.name].sort().join())).size > 1;
+  const mixed = new Set(fixtures.map((m) => m.format)).size > 1;
+  const next = fixtures.find((m) => m.phase === "upcoming");
+  return fixtures
+    .map((m, i) => {
+      const head =
+        mixed && m.format !== fixtures[i - 1]?.format
+          ? `<div class="fmt-h" data-k="fh${m.id}">${esc(formatName(m.format, fixtures))}</div>`
+          : "";
+      return head + fixtureRow(m, { next: m === next, teams });
+    })
+    .join("");
+}
+
+// "T20Is · 5" for a format group within a series.
+function formatName(format, fixtures) {
+  const n = fixtures.filter((m) => m.format === format).length;
+  const f = FORMAT_LABEL[format] ?? format;
+  return `${f}${n > 1 ? "s" : ""} · ${n}`;
 }
 
 function tags(m) {
@@ -1034,12 +1080,7 @@ const sameSeries = (a, b) =>
 // Every known match of `focus`'s series, freshest copy first: live list, schedule, results.
 function seriesOf(focus) {
   const byId = new Map();
-  for (const m of [
-    ...(S.list?.matches ?? []),
-    ...(S.sched?.india ?? []),
-    ...(S.sched?.indiaResults ?? []),
-    ...(S.sched?.ipl?.fixtures ?? []),
-  ])
+  for (const m of knownMatches())
     if (sameSeries(m, focus) && !byId.has(String(m.id)))
       byId.set(String(m.id), m);
   return [...byId.values()].sort(byStartAsc);
@@ -1063,7 +1104,7 @@ function currentSeries(focus) {
       ${fixtureMarks(all, `${played.length} of ${all.length} played${record ? `: ${record}` : ""}`)}
       ${latest ? `<div class="latest"><span class="lbl">Latest</span>${esc(`${latest.desc}: ${latest.status}`)}</div>` : ""}
     </div>
-    ${ahead.length ? `<div class="sec" data-k="cah"><span>Then</span></div><div class="list" data-k="csl">${ahead.map(fixtureRow).join("")}</div>` : ""}
+    ${ahead.length ? `<div class="sec" data-k="cah"><span>Then</span></div><div class="list" data-k="csl">${ahead.map((m) => fixtureRow(m)).join("")}</div>` : ""}
     <a class="to-tab" data-k="cslink" href="#${tab}">${tab === "ipl" ? "All IPL fixtures and results" : "India's results and every series ahead"} →</a>`;
 }
 
@@ -1111,7 +1152,7 @@ function seriesRow(g) {
   return `<details class="sr" data-k="sr${esc(g.id)}" data-series="${esc(g.id)}"${open ? " open" : ""}>
     <summary><div><div class="nm">${esc(g.name)}</div><div class="sub">${esc(dateRange(first.start, last.start))} · ${esc(composition(g.fixtures))} to play</div>${fixtureMarks(g.fixtures, `${composition(g.fixtures)} to play; the first is next`)}</div>
       <div class="nx">${first.start ? esc(dayLabel(first.start)) : ""}<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></div></summary>
-    ${g.fixtures.map(fixtureRow).join("")}
+    ${fixtureList(g.fixtures)}
   </details>`;
 }
 
@@ -1161,13 +1202,17 @@ function foot(asOf = S.list?.asOf, err = S.listErr, cricinfo = false) {
 // ---------- match view
 
 // A fixture from the live feed or, further ahead, from the schedule.
+// Every match the app knows of, freshest source first: the live list, then India's
+// schedule and results, then the IPL season. Lookups by id or series read this pool.
+const knownMatches = () => [
+  ...(S.list?.matches ?? []),
+  ...(S.sched?.india ?? []),
+  ...(S.sched?.indiaResults ?? []),
+  ...(S.sched?.ipl?.fixtures ?? []),
+];
+
 function summaryOf(id) {
-  const all = [
-    ...(S.list?.matches ?? []),
-    ...(S.sched?.india ?? []),
-    ...(S.sched?.ipl?.fixtures ?? []),
-  ];
-  return all.find((m) => String(m.id) === String(id)) ?? null;
+  return knownMatches().find((m) => String(m.id) === String(id)) ?? null;
 }
 
 // Innings per team: live miniscore first, then the list feed, then the scorecard.

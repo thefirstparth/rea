@@ -893,14 +893,43 @@ details.sr .chev {
 details.sr[open] .chev {
   transform: rotate(180deg);
 }
-/* No score column, so the date gets room to stay on one line. */
+/* Fixture rows: a tear-off calendar date, the match and city, start time and ground. */
 .mr.fxr {
-  grid-template-columns: 4.6rem 1fr;
+  grid-template-columns: 46px 1fr auto;
   min-height: 0;
   padding: 10px 14px;
 }
-.fxr .st > span {
-  white-space: nowrap;
+.cal {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  width: 46px;
+  height: 50px;
+  border-radius: 12px;
+  background: var(--sunk);
+  line-height: 1.05;
+}
+.cal small {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.cal b {
+  font-family: var(--num);
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+.fxr.is-next .cal {
+  background: var(--cobalt);
+  color: #fff;
+}
+.fxr.is-next .cal small {
+  color: #dce2ff;
+}
+.fxm {
+  min-width: 0;
 }
 .fxr .nm {
   font-weight: 650;
@@ -915,6 +944,24 @@ details.sr[open] .chev {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.chip-next {
+  padding: 3px 9px;
+  border-radius: 10px;
+  background: var(--sticker);
+  color: var(--on-sticker);
+  font-weight: 800;
+  font-size: var(--t-cap);
+  white-space: nowrap;
+  box-shadow: 0 0 0 2px var(--die);
+  transform: rotate(3deg);
+}
+/* Not uppercased: "T20Is" would read "T20IS". */
+.fmt-h {
+  padding: 12px 14px 2px;
+  font-size: var(--t-meta);
+  font-weight: 700;
+  color: var(--muted);
 }
 details.sr > .mr::before {
   content: "";
