@@ -1764,6 +1764,14 @@ a.rc:active {
   transform: scale(0.96);
 }
 
+/* A section a link lands on (#india/results) clears the top bar when scrolled to. */
+#results {
+  scroll-margin-top: calc(var(--safe-t) + 60px);
+}
+#results:focus:not(:focus-visible) {
+  outline: none;
+}
+
 /* Home: the series the live or next match belongs to */
 .series-now .nm {
   font-weight: 700;

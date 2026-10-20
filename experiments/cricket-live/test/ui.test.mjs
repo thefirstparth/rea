@@ -381,3 +381,35 @@ test(
     }
   },
 );
+
+test(
+  "results links land on India's results, not the top of the tab",
+  { skip },
+  async () => {
+    const v = await open(`#m/${next}/live`);
+    await v.page.getByRole("link", { name: "India's latest results" }).click();
+    await v.page.waitForFunction(
+      () => document.activeElement?.id === "results",
+    );
+    assert.equal(await v.page.evaluate(() => location.hash), "#india/results");
+    const top = await v.page.evaluate(
+      () => document.getElementById("results").getBoundingClientRect().top,
+    );
+    assert.ok(top > 40 && top < 120, `results heading at ${top}px`);
+    const latest = v.page.locator("details[data-default-open]").first();
+    assert.equal(await latest.evaluate((d) => d.open), true);
+    // Back returns to the match the link was followed from.
+    await v.page.goBack();
+    await v.page.waitForFunction(
+      (id) => location.hash === `#m/${id}/live`,
+      next,
+    );
+    await v.close();
+    // Opened directly, the address scrolls there too.
+    const w = await open("#india/results");
+    await w.page.waitForFunction(
+      () => document.activeElement?.id === "results",
+    );
+    await w.close();
+  },
+);

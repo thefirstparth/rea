@@ -1,4 +1,5 @@
-// Crease client. Hash routes: #now #india #ipl #all, and #m/{id}/{live|scorecard|squads|info}.
+// Crease client. Hash routes: #now #india #ipl #all, #india/results (the India tab at its
+// results), and #m/{id}/{live|scorecard|squads|info}.
 // One poll loop refreshes whatever the current route shows; renders are morphed into the DOM
 // so live updates keep scroll, focus, images and open sections.
 
@@ -393,8 +394,26 @@ function route() {
       history.replaceState(null, "", `#m/${id}/${tab}`);
     return { kind: "match", id, tab };
   }
+  if (h === "india/results")
+    return { kind: "list", tab: "india", section: "results" };
   if (h && !LIST_TABS.includes(h)) history.replaceState(null, "", "#now");
   return { kind: "list", tab: LIST_TABS.includes(h) ? h : "now" };
+}
+
+// A section a route asks to be shown (#india/results): scrolled to and focused once it
+// has rendered, which may be a poll later.
+let reveal = null;
+function revealSection() {
+  if (!reveal) return;
+  const el = document.getElementById(reveal);
+  if (!el) {
+    // Loaded, and still no such section (India have no results listed): give up.
+    if (S.sched || S.schedErr) reveal = null;
+    return;
+  }
+  reveal = null;
+  el.scrollIntoView({ block: "start" });
+  el.focus({ preventScroll: true });
 }
 
 let lastRouteKey = "";
@@ -409,6 +428,9 @@ function onRoute() {
     cameFromList = true;
   lastRouteKey = key;
   leaving = false;
+  reveal = r.section ?? null;
+  // Asked for the results: the latest series opens even if it was closed earlier.
+  if (reveal === "results") S.closedSeries.clear();
   if (changed) {
     view.innerHTML = "";
     window.scrollTo(0, 0);
@@ -1418,7 +1440,7 @@ function currentSeries(focus) {
       ${latest ? `<div class="latest"><span class="lbl">Latest</span>${esc(`${latest.desc}: ${latest.status}`)}</div>` : ""}
     </div>
     ${ahead.length ? `<div class="sec" data-k="cah"><span>Then</span></div><div class="list" data-k="csl">${ahead.map((m) => fixtureRow(m)).join("")}</div>` : ""}
-    <a class="to-tab" data-k="cslink" href="#${tab}">${tab === "ipl" ? "All IPL fixtures and results" : "India's results and every series ahead"} →</a>`;
+    <a class="to-tab" data-k="cslink" href="#${tab === "india" ? "india/results" : tab}">${tab === "ipl" ? "All IPL fixtures and results" : "India's results and every series ahead"} →</a>`;
 }
 
 // India's recent results, freshest first: the live list's finished matches, then the
@@ -1443,7 +1465,7 @@ function indiaResultsSection() {
       "Cricbuzz didn't answer. Crease tries again every half hour.",
     );
   if (!results.length) return "";
-  return `<div class="sec" data-k="rh"><span>Recent series</span></div><div class="list" data-k="rl">${groupSeries(
+  return `<div class="sec" id="results" tabindex="-1" data-k="rh"><span>Recent series</span></div><div class="list" data-k="rl">${groupSeries(
     results,
   )
     .map((g, i) => resultsRow(g, i === 0))
@@ -1672,7 +1694,7 @@ function previewView(r, m) {
   else
     body = empty(
       "Not started yet",
-      `This match ${esc(start)}. Commentary and the scorecard begin at the toss; squads appear once they're named. Meanwhile: <a class="link" href="#all">see what's live now</a> or <a class="link" href="#india">India's latest results</a>.`,
+      `This match ${esc(start)}. Commentary and the scorecard begin at the toss; squads appear once they're named. Meanwhile: <a class="link" href="#all">see what's live now</a> or <a class="link" href="#india/results">India's latest results</a>.`,
       true,
     );
   return `${hero}${matchTabs(r.id, r.tab)}<div data-k="body-${r.tab}">${body}</div>`;
@@ -2146,6 +2168,7 @@ function render() {
       : title
         ? `${title} · Crease`
         : "Crease";
+  revealSection();
 }
 
 // ---------- events
