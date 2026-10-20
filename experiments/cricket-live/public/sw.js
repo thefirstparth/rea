@@ -72,7 +72,27 @@ self.addEventListener("fetch", (e) => {
   );
 });
 
+// Only what the app can use replaces the last good copy: JSON for the API, Crease's own
+// page for "/" (a Wi-Fi login page answering 200 must not become the offline app).
+async function usable(res, api, key) {
+  const type = res.headers.get("content-type") ?? "";
+  if (api) {
+    if (!type.includes("json")) return false;
+    try {
+      const body = await res.clone().json();
+      return !!body && typeof body === "object";
+    } catch {
+      return false;
+    }
+  }
+  if (key !== "/") return true;
+  return (
+    type.includes("html") && (await res.clone().text()).includes('id="view"')
+  );
+}
+
 async function keep(key, res, api) {
+  if (!(await usable(res, api, key))) return;
   const c = await caches.open(CACHE);
   await c.delete(key);
   await c.put(key, res);

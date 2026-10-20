@@ -1462,7 +1462,7 @@ function indiaView() {
   if (fixtures.length)
     html += `<h2 class="sec" data-k="sh"><span>Series ahead</span></h2><div class="list" data-k="sl">${groupSeries(fixtures).slice(0, 12).map(seriesRow).join("")}</div>`;
   else if (!S.sched && !S.schedErr) html += skeleton(1);
-  else if (!live.length)
+  else if (!live.length && !S.schedErr)
     html += empty(
       "No India fixtures listed",
       "Cricbuzz hasn't published India's next matches yet.",
@@ -1735,10 +1735,7 @@ function seasonCard() {
   if (!season) {
     if (!S.sched && !S.schedErr) return skeleton(1);
     if (S.schedErr || S.sched.failed.includes("ipl"))
-      return empty(
-        "Couldn't load the IPL calendar",
-        "Cricbuzz didn't answer. Crease tries again every half hour.",
-      );
+      return empty("Couldn't load the IPL calendar", schedFailure());
     return empty(
       "No IPL season listed",
       "The next season appears here once Cricbuzz lists it.",
@@ -2044,14 +2041,17 @@ function indiaResults() {
   return all.length || S.sched?.indiaResults ? all : null;
 }
 
+// Why the schedule is missing: the request failed (retried on the next refresh), or
+// Cricbuzz left out one part (asked again in half an hour).
+const schedFailure = () =>
+  S.schedErr
+    ? `${sentence(S.schedErr)} Crease tries again with the next refresh.`
+    : "Cricbuzz didn't answer. Crease tries again every half hour.";
+
 function indiaResultsSection() {
   if (!S.sched && !S.schedErr) return skeleton(1);
   const results = indiaResults();
-  if (!results)
-    return empty(
-      "Couldn't load India's results",
-      "Cricbuzz didn't answer. Crease tries again every half hour.",
-    );
+  if (!results) return empty("Couldn't load India's results", schedFailure());
   if (!results.length) return "";
   return `<h2 class="sec" id="results" tabindex="-1" data-k="rh"><span>Recent series</span></h2><div class="list" data-k="rl">${groupSeries(
     results,
@@ -2372,7 +2372,7 @@ function liveTab(id, d) {
       ${mini.lastWicket ? `<div class="kv"><span class="lbl">Last wicket</span>${esc(mini.lastWicket.replace(/\s+/g, " "))}</div>` : ""}
       ${reviewsLeft(mini.reviews, d.header)}
       ${fallOfWickets(id, mini.inn)}
-      ${statKey(" · d declared · Overs: • no run, W wicket, Wd wide, N no-ball, L leg byes, B byes (with the runs, as in L1) · Fall of wickets: the score when each wicket fell")}
+      ${statKey(" · d declared · Overs: • no run, W wicket, Wd wide, N no-ball, L leg byes, B byes (with the runs, as in L1) · Ball 3.6 is the 6th ball after 3 overs, so it ends the 4th over · Fall of wickets: the score when each wicket fell")}
     </div>`;
   }
   const ci = useCricinfo(id);
@@ -2738,6 +2738,7 @@ let checking = false;
 
 function viewData(r) {
   if (r.kind === "list") return { asOf: S.list?.asOf, err: S.listErr };
+  if (r.kind === "bad" || S.missing.has(r.id)) return {};
   const d = S.match.get(r.id);
   const h = d?.header ?? summaryOf(r.id);
   const still = !h
@@ -2854,7 +2855,7 @@ function viewHtml(r) {
 
 // The top bar's title, which the document title repeats.
 function titleOf(r, teams) {
-  if (r.kind === "bad") return "Not found";
+  if (r.kind === "bad" || S.missing.has(r.id)) return "Not found";
   if (r.kind !== "match") return headingOf(r.tab);
   return teams ? `${teams.t1.short} v ${teams.t2.short}` : "Match";
 }
@@ -3003,11 +3004,13 @@ function openSheet(id) {
   const d = $(id);
   if (d.open) return;
   d.showModal();
+  d.dataset.opened = String(Date.now());
   history.pushState({ sheet: id }, "", location.href);
 }
 addEventListener("popstate", () => {
   for (const d of document.querySelectorAll("dialog.sheet[open]"))
     if (history.state?.sheet !== `#${d.id}`) d.close();
+  if (history.state?.sheet && !$(history.state.sheet)?.open) history.back();
 });
 
 // Outside the sheet's box: a press that starts and ends on the backdrop. Taps on the
@@ -3027,7 +3030,8 @@ for (const d of document.querySelectorAll("dialog.sheet")) {
     downOutside = e.target === d && outside(d, e);
   });
   d.addEventListener("click", (e) => {
-    const backdrop = downOutside && e.target === d && outside(d, e);
+    const settled = Date.now() - Number(d.dataset.opened ?? 0) > 450;
+    const backdrop = settled && downOutside && e.target === d && outside(d, e);
     downOutside = false;
     if (backdrop || e.target.closest("[data-close]")) d.close();
   });
