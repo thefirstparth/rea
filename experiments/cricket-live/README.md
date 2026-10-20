@@ -246,6 +246,10 @@ for 60 days and emails before it does; re-enable it from the Actions tab.
   format ("ODIs: IND won 2–1") replaces a single mixed tally. On the India tab
   each recent series is one closed line ("ODIs IND 2–1 · T20Is 2–2 · 1 NR") that
   opens to its chips and matches; each series ahead leads with a calendar tile.
+- **Matchday poster**: when no India or IPL match is live, home leads with the
+  next one as a poster: both sides' flags on their team colours (darkened until
+  white text passes WCAG AA), the countdown to the first ball, and the start in
+  IST and at the ground.
 - **IPL**: while a season runs (first match to three days after the last), the
   next match, the points table, fixtures and results. Between seasons, the next
   season's dates as Cricbuzz lists them, and the last finished season (found by

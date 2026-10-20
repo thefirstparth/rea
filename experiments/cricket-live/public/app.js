@@ -1178,6 +1178,12 @@ const liveSection = (live) =>
 // fixture of either, and that match's series. Everything else lives in its tab.
 function homeView() {
   const live = liveIn("now");
+  if (S.list && !live.length) {
+    const next = [upcoming("india")[0], upcoming("ipl")[0]]
+      .filter(Boolean)
+      .sort(byStartAsc)[0];
+    if (next) return upNext(next);
+  }
   let html = pageHead("now", live);
   if (!S.list) return html + (S.listErr ? errorCard(S.listErr) : skeleton());
   html += liveSection(live);
@@ -1201,6 +1207,51 @@ function homeView() {
   const focus = live[0] ?? next;
   if (focus) html += currentSeries(focus);
   return html + foot();
+}
+
+// Nothing on: the next India or IPL match as a matchday poster, then the rest of home.
+function upNext(next) {
+  const others = pick("all").filter((m) => m.phase === "live").length;
+  return `<div class="ph sm" data-k="ph"><h1>${headingOf("now")}</h1></div>
+    ${poster(next)}
+    <p class="idle" data-k="idle">Nothing live for India or IPL${others ? ` · <a class="link" href="#all">${others} other match${others > 1 ? "es" : ""} live →</a>` : ""}</p>
+    ${favCard([next])}${currentSeries(next)}${foot()}`;
+}
+
+// A team colour dark enough under white text (WCAG AA, 4.5:1): darkened in steps
+// until it is, so a yellow side (Australia, Chennai) still carries the poster's text.
+function posterTone(hex) {
+  let c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  const lin = (v) =>
+    v / 255 <= 0.03928 ? v / 255 / 12.92 : ((v / 255 + 0.055) / 1.055) ** 2.4;
+  const lum = () =>
+    0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2]);
+  for (let i = 0; i < 30 && 1.05 / (lum() + 0.05) < 4.6; i++)
+    c = c.map((v) => v * 0.88);
+  return `rgb(${c.map(Math.round).join(" ")})`;
+}
+
+// The poster: the two sides' flags tilted toward each other on their colours, split
+// on the diagonal, and the countdown to the first ball as the headline.
+function poster(m) {
+  const left = posterTone(TEAM_COLOR[m.t1.short] ?? "#1b2133");
+  const right = posterTone(TEAM_COLOR[m.t2.short] ?? "#2442e8");
+  const label = m.tags.includes("ipl") ? "IPL" : sideOf(m);
+  const side = (t, cls) =>
+    `<div class="side-p">${t.flag ? `<img class="pf ${cls}" src="${esc(t.flag)}" alt="" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">` : `<span class="pf mono ${cls}">${esc(t.short)}</span>`}<span class="tn">${esc(t.name)}</span></div>`;
+  const cd = m.start ? countdown(m.start, false) : "";
+  const ahead = m.start && m.start > Date.now();
+  const c = venueClock(m);
+  const where = m.venue
+    ? [m.venue.ground, m.venue.city].filter(Boolean).join(", ")
+    : "";
+  return `<a class="poster" data-k="p${m.id}" href="#m/${m.id}/info" style="--pl:${left};--pr:${right}">
+    <div class="top">${esc(`${label} · ${m.desc}`)}</div>
+    <div class="vs">${side(m.t1, "l")}<span class="v">vs</span>${side(m.t2, "r")}</div>
+    ${cd ? `<div class="cd">${esc(cd)}</div>${ahead ? '<div class="cdl">to the first ball</div>' : ""}` : ""}
+    <div class="pills">${m.start ? `<span class="when">${esc(startsShort(m.start))}</span>` : ""}${c ? `<span>${PART_ICON[c.part]}${esc(`${c.time} in ${c.place}`)}</span>` : where ? `<span>${esc(where)}</span>` : ""}</div>
+    <div class="ser">${esc(m.series)}</div>
+  </a>`;
 }
 
 // The followed team, unless the page already shows its match: its next fixture, or

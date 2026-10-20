@@ -842,6 +842,149 @@ main {
   animation: pulse 1.6s ease-in-out infinite;
 }
 
+/* Matchday poster: home's next match when nothing is on. The two sides' colours
+   (darkened to carry white text) split on the diagonal; flags tilt toward each
+   other; the countdown is the headline. Same in both themes, like the score card. */
+.ph.sm {
+  padding-bottom: 0;
+}
+.ph.sm h1 {
+  font-size: var(--t-meta);
+  font-weight: 750;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.poster {
+  display: block;
+  position: relative;
+  margin: 14px 0 6px;
+  padding: 16px 16px 18px;
+  border-radius: 26px;
+  color: #fff;
+  text-align: center;
+  background: linear-gradient(
+    135deg,
+    var(--pl) 0,
+    var(--pl) 46%,
+    var(--pr) 46.2%,
+    var(--pr) 100%
+  );
+  box-shadow:
+    0 0 0 5px var(--die),
+    0 18px 40px rgba(14, 19, 48, 0.3);
+}
+.poster .top {
+  text-align: left;
+  font-size: var(--t-cap);
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.poster .vs {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 8px;
+  align-items: center;
+  margin: 18px 0 6px;
+}
+.poster .side-p {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.poster .pf {
+  width: 72px;
+  height: 54px;
+  border-radius: 10px;
+  object-fit: cover;
+  box-shadow:
+    0 0 0 3px #fff,
+    0 8px 18px rgba(0, 0, 0, 0.35);
+}
+.poster .pf.mono {
+  display: grid;
+  place-items: center;
+  background: #fff;
+  color: #0e1330;
+  font-family: var(--num);
+  font-weight: 700;
+  font-size: 1.3rem;
+}
+.poster .pf.l {
+  transform: rotate(-6deg);
+}
+.poster .pf.r {
+  transform: rotate(6deg);
+}
+.poster .tn {
+  font-weight: 800;
+  font-size: 1.02rem;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+.poster .v {
+  font-family: var(--num);
+  font-weight: 700;
+  font-size: 1rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+}
+.poster .cd {
+  margin-top: 12px;
+  font-family: var(--num);
+  font-weight: 700;
+  font-size: 4rem;
+  line-height: 0.95;
+  white-space: nowrap;
+}
+.poster .cdl {
+  margin-top: 4px;
+  font-size: var(--t-meta);
+}
+.poster .pills {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin-top: 14px;
+  font-size: var(--t-meta);
+  font-weight: 650;
+}
+.poster .pills span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.28);
+}
+.poster .pills svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 1.2;
+}
+.poster .ser {
+  margin-top: 12px;
+  font-size: var(--t-cap);
+}
+.idle {
+  margin: 12px 4px 0;
+  font-size: var(--t-meta);
+  color: var(--muted);
+}
+/* The link keeps a 44px tap area without adding height: padding, offset by margin. */
+.idle .link {
+  display: inline-block;
+  min-height: 0;
+  padding: 13px 0;
+  margin: -13px 0;
+}
+
 /* hero: a live match on a list page */
 .hero {
   display: block;

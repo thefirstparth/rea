@@ -130,7 +130,7 @@ test(
   { skip },
   async () => {
     const v = await open("#now");
-    const when = () => v.page.locator(".hero.next .when").innerText();
+    const when = () => v.page.locator(".poster .when").innerText();
     assert.match(await when(), /\b(am|pm) IST\b/i);
     await v.page.locator("#settingsBtn").click();
     await v.page.locator('input[name=clock][value="24"]').check();
