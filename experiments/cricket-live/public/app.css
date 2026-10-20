@@ -965,6 +965,14 @@ details.sr > summary {
   align-items: center;
   padding: 12px 14px;
 }
+/* A series ahead leads with its start date as a calendar tile. */
+details.sr.ahead > summary {
+  grid-template-columns: 46px 1fr auto;
+  gap: 12px;
+}
+.list > details.sr.ahead + details.sr.ahead::before {
+  left: 72px;
+}
 details.sr > summary::-webkit-details-marker {
   display: none;
 }

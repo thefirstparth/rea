@@ -413,3 +413,29 @@ test(
     await w.close();
   },
 );
+
+test(
+  "the top bar says how fresh the data is, and tapping it refreshes",
+  { skip },
+  async () => {
+    const fresh = (v) => v.page.locator("#freshText").innerText();
+    const done_ = await open(`#m/${done}/live`);
+    assert.equal(await fresh(done_), "Final");
+    await done_.close();
+    const next_ = await open(`#m/${next}/info`);
+    assert.equal(await fresh(next_), "Not started");
+    await next_.close();
+    const v = await open("#now");
+    assert.match(await fresh(v), /^Updated (just now|\d+s ago|\d+ min ago)$/);
+    // A failed refresh turns it red and keeps the data's age.
+    await v.page.route("**/api/matches", (r) => r.abort());
+    await v.page.locator("#fresh").click();
+    await v.page.locator(".fresh.bad").waitFor();
+    assert.match(await fresh(v), /min old|s old/);
+    assert.match(
+      await v.page.locator("#fresh").getAttribute("aria-label"),
+      /^Refresh failed · .* old\. Refresh now$/,
+    );
+    await v.close();
+  },
+);

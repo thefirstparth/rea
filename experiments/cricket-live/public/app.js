@@ -1285,11 +1285,12 @@ function groupSeries(fixtures) {
 const FORMAT_LABEL = { T20: "T20I", ODI: "ODI", TEST: "Test" };
 const BILATERAL = /^(\d+(st|nd|rd|th)|One-off) (T20I|ODI|Test)$/;
 
-// "5 T20Is · 5 ODIs · 2 Tests" for a bilateral series, "5 matches" for a tournament.
-function composition(fixtures) {
+// "5 T20Is · 5 ODIs · 2 Tests" for a bilateral series, "5 matches" for a tournament
+// ("5 India matches" when `side` names whose games these are).
+function composition(fixtures, side = "") {
   const n = fixtures.length;
   if (!fixtures.every((m) => BILATERAL.test(m.desc)))
-    return `${n} match${n > 1 ? "es" : ""}`;
+    return `${n} ${side ? `${side} ` : ""}match${n > 1 ? "es" : ""}`;
   const counts = new Map();
   for (const m of fixtures) {
     const f = FORMAT_LABEL[m.format] ?? m.format;
@@ -1311,13 +1312,14 @@ function outcome(m) {
 }
 
 // "1st ODI" → "1"; knockouts by their stage; other tournament games by their order.
+// Knockout stages first: "2nd Quarter-Final" is a QF, not match 2.
 function matchNo(m, i) {
-  const n = m.desc.match(/^(\d+)(st|nd|rd|th)\b/);
-  if (n) return n[1];
-  if (/^one-off/i.test(m.desc)) return "1";
   if (/semi/i.test(m.desc)) return "SF";
   if (/quarter/i.test(m.desc)) return "QF";
   if (/final|medal/i.test(m.desc)) return "F";
+  const n = m.desc.match(/^(\d+)(st|nd|rd|th)\b/);
+  if (n) return n[1];
+  if (/^one-off/i.test(m.desc)) return "1";
   return String(i + 1);
 }
 
@@ -1487,13 +1489,29 @@ function resultsRow(g, latest = false) {
   </details>`;
 }
 
+// "Sri Lanka tour of India, 2026" → "Sri Lanka tour of India": the dates carry the year.
+const withoutYear = (name) =>
+  name.replace(/,?\s+\d{4}(-\d{2,4})?$/, "") || name;
+
+// "27 Feb", or "27 Feb 2027" when it isn't this year.
+const dayMonth = (ts) =>
+  (new Date(ts).getFullYear() === new Date().getFullYear()
+    ? shortDate
+    : yearDate
+  ).format(ts);
+
+// A series to come: its start as a calendar tile, then what it holds and when it ends.
 function seriesRow(g) {
   const first = g.fixtures[0];
   const last = g.fixtures.at(-1);
   const open = S.openSeries.has(g.id);
-  return `<details class="sr" data-k="sr${esc(g.id)}" data-series="${esc(g.id)}"${open ? " open" : ""}>
-    <summary><div><div class="nm">${esc(g.name)}</div><div class="sub">${esc(dateRange(first.start, last.start))} · ${esc(composition(g.fixtures))} to play</div></div>
-      <div class="nx">${first.start ? esc(dayLabel(first.start)) : ""}<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></div></summary>
+  const until =
+    last.start && dayMonth(last.start) !== dayMonth(first.start)
+      ? ` · until ${dayMonth(last.start)}`
+      : "";
+  return `<details class="sr ahead" data-k="sr${esc(g.id)}" data-series="${esc(g.id)}"${open ? " open" : ""}>
+    <summary>${calTile(first.start)}<div><div class="nm">${esc(withoutYear(g.name))}</div><div class="sub">${first.start ? `<span class="vh">From ${esc(fullFmt.format(first.start))}: </span>` : ""}${esc(composition(g.fixtures, sideOf(first)))}${esc(until)}</div></div>
+      <div class="nx"><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></div></summary>
     ${fixtureList(g.fixtures)}
   </details>`;
 }
@@ -2133,14 +2151,13 @@ function viewData(r) {
         : paused(h)
           ? stateWord(h)
           : "";
+  // Before Cricbuzz opens the match centre the page is the fixture from the lists;
+  // its "not found" is expected, not a failed refresh.
+  if (!d) return { asOf: S.list?.asOf, err: S.listErr, still };
   // The scorecard has its own fetch time, which can trail the live score.
   if (r.tab === "scorecard")
     return { asOf: S.card.get(r.id)?.asOf, err: S.cardErr.get(r.id), still };
-  return {
-    asOf: d?.asOf ?? (d ? null : S.list?.asOf),
-    err: S.matchErr.get(r.id),
-    still,
-  };
+  return { asOf: d.asOf, err: S.matchErr.get(r.id), still };
 }
 
 const minsOld = (ms) => {
@@ -2151,14 +2168,22 @@ const minsOld = (ms) => {
 function freshness(r) {
   if (checking) return { cls: "spin", text: "Checking…" };
   const { asOf, err, still } = viewData(r);
-  const fail = navigator.onLine === false ? "Offline" : "Refresh failed";
-  if (!asOf) return err ? { cls: "bad", text: fail } : null;
+  const offline = navigator.onLine === false;
+  if (!asOf)
+    return err ? { cls: "bad", text: offline ? "Offline" : "Retrying" } : null;
+  // Narrow screens keep the short part: "Offline", or the data's age in red.
   if (err)
-    return {
-      cls: "bad",
-      text: fail,
-      more: ` · ${minsOld(Date.now() - asOf)}`,
-    };
+    return offline
+      ? {
+          cls: "bad",
+          text: "Offline",
+          more: ` · ${minsOld(Date.now() - asOf)}`,
+        }
+      : {
+          cls: "bad",
+          lead: "Refresh failed · ",
+          text: minsOld(Date.now() - asOf),
+        };
   if (still) return { cls: "", text: still, asOf };
   // On narrow screens the line drops its first word: "18s ago".
   return {
