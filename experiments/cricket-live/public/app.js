@@ -2161,7 +2161,7 @@ const notFoundView = () =>
   `${empty("We couldn't find this match", "The link may be wrong or the match was removed.")}<a class="to-tab" data-k="home" href="#now">Go to the home page →</a>`;
 
 // The list's copy of the match while its own page loads.
-function loadingView(r, m) {
+function loadingView(r, m, body = skeleton()) {
   if (!m) return skeleton(1) + skeleton();
   return `<section class="mhero" data-k="mh">
     ${stateSticker(m)}
@@ -2169,7 +2169,7 @@ function loadingView(r, m) {
     <h1 tabindex="-1">${esc(m.t1.short)} v ${esc(m.t2.short)} · ${esc(m.desc)}</h1>
     <div class="rows">${hrow(m, m.t1, m.s1)}${hrow(m, m.t2, m.s2)}</div>
     <div class="status">${esc(m.status)}</div>
-  </section>${matchTabs(r.id, r.tab)}<div data-k="body-${r.tab}">${skeleton()}</div>`;
+  </section>${matchTabs(r.id, r.tab)}<div data-k="body-${r.tab}">${body}</div>`;
 }
 
 // Cricbuzz's match centre can name the sides in the other order from its lists: the
@@ -2189,7 +2189,10 @@ function matchView(r) {
     // one that failed to load says so.
     if (fixture?.phase === "upcoming") return previewView(r, fixture);
     if (S.missing.has(id)) return notFoundView();
-    if (err) return errorCard(err, "this match");
+    if (err)
+      return fixture
+        ? loadingView(r, fixture, errorCard(err, "this match"))
+        : errorCard(err, "this match");
     return loadingView(r, fixture);
   }
   const sm = summaryOf(id);
@@ -3359,7 +3362,11 @@ view.addEventListener(
   true,
 );
 
-// Keep relative "Updated …" text honest between polls.
+// Keep relative "Updated …" text honest between polls: the top bar's age every second,
+// the page's countdowns every ten.
+setInterval(() => {
+  if (!document.hidden) showFreshness(route());
+}, 1000);
 setInterval(() => {
   if (!document.hidden) render();
 }, 10000);

@@ -285,8 +285,10 @@ for 60 days and emails before it does; re-enable it from the Actions tab.
   opens a tapped alert's match, and it keeps Crease's own files and the last answer
   to each API request (up to 60, without query strings) in cache storage. Every
   request goes to the network first, so online nothing is served from the copy;
-  offline the app opens with its last scores and the top bar says "Offline" with
-  their age. About & privacy says the same.
+  offline, or when the connection stalls for 8 seconds (one bar of signal), the
+  app opens with its last scores and the top bar gives their age ("Offline" when
+  the device knows it is). Only answers the app can read are kept, so a Wi-Fi
+  login page never replaces them. About & privacy says the same.
 - **Bad answers**: anything that isn't Crease's JSON (a Wi-Fi login page, a cut-off
   body) or has the wrong shape is a failure the page shows and retries, never data;
   a view that still fails to render shows an error card. An answer older than the
