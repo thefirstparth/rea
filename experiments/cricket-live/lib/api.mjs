@@ -65,7 +65,8 @@ function resolve(pathname, query) {
   if (kind !== "match" || !ID.test(id ?? "")) return null;
   if (!sub) return { ttl: 10, load: () => match(id) };
   if (rest && sub !== "cricinfo") return null;
-  if (sub === "scorecard") return { ttl: 15, load: () => scorecard(id) };
+  // Same lifetime as the match payload, so the hero and scorecard agree.
+  if (sub === "scorecard") return { ttl: 10, load: () => scorecard(id) };
   if (sub === "squads") return { ttl: 60, load: () => squads(id) };
   if (sub === "commentary") return olderCricbuzz(id, query);
   if (sub === "cricinfo" && !rest)

@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en-IN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <title>About &amp; privacy · Crease</title>
+    <meta
+      name="description"
+      content="What Crease is, where its data comes from, and what it stores."
+    />
+    <meta name="theme-color" content="#f3f3f5" id="themeColor" />
+    <script>
+      try {
+        var t = localStorage.getItem("crease-theme");
+        if (
+          t === "dark" ||
+          (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches)
+        ) {
+          document.documentElement.dataset.theme = "dark";
+          document.getElementById("themeColor").content = "#000000";
+        }
+      } catch (e) {}
+    </script>
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link
+      rel="stylesheet"
+      referrerpolicy="no-referrer"
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Barlow+Condensed:wght@500;600;700&display=swap"
+    />
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="top-in">
+        <div class="top-left">
+          <a class="icon back" href="/#now" aria-label="Back to Crease">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M15 5l-7 7 7 7" />
+            </svg>
+          </a>
+        </div>
+      </div>
+    </header>
+    <main class="prose">
+      <h1>About &amp; privacy</h1>
+
+      <h2>What Crease is</h2>
+      <p>
+        Crease shows live scores, ball-by-ball commentary, scorecards and squads
+        for India and the IPL, plus every other match in progress. It is free,
+        has no accounts and no ads, and is an independent project.
+      </p>
+
+      <h2>Where the cricket comes from</h2>
+      <p>
+        Scores, scorecards, squads and fixtures come from Cricbuzz. Extra match
+        details and the live blog come from ESPNcricinfo. Crease reads them from
+        their public websites; it is not affiliated with Cricbuzz, ESPNcricinfo,
+        the BCCI or the IPL, and they don't endorse it. Their pages can change
+        without notice, so a score may be late or a section may be missing for a
+        while.
+      </p>
+      <p>
+        Commentary text is theirs. The Cricinfo live blog includes reader
+        comments, shown as the blog shows them.
+      </p>
+
+      <h2>What Crease stores</h2>
+      <p>
+        Nothing about you. There are no cookies and no analytics. Your choices
+        are kept in your own browser (local storage) and never leave it:
+      </p>
+      <ul>
+        <li><b>crease-clock</b>: 12- or 24-hour time.</li>
+        <li><b>crease-theme</b>: light or dark, when you pick one.</li>
+        <li><b>crease-comm</b>: your commentary source.</li>
+        <li><b>crease-alerts</b>: whether alerts are on.</li>
+      </ul>
+      <p>Clearing this site's data in your browser removes them all.</p>
+
+      <h2>Alerts</h2>
+      <p>
+        Alerts only work after you allow notifications in your browser. Crease
+        then checks for wickets, milestones and match starts while it is open,
+        and shows the notification itself. To show notifications on Android,
+        browsers need a small background script (a service worker); Crease
+        installs one only when you turn alerts on, removes it when you turn them
+        off, and it stores nothing.
+      </p>
+
+      <h2>Other sites your browser contacts</h2>
+      <ul>
+        <li>
+          <b>Google Fonts</b> (fonts.googleapis.com, fonts.gstatic.com) for the
+          typefaces. Google receives your IP address, as with any font request.
+        </li>
+        <li>
+          <b>Cricbuzz</b> (static.cricbuzz.com) for flags and player photos.
+        </li>
+        <li><b>ESPN</b> (a.espncdn.com) for IPL team logos.</li>
+      </ul>
+      <p>
+        Images are requested without telling those sites which page you were on
+        (no referrer). Score data is fetched by Crease's own server, so Cricbuzz
+        and ESPNcricinfo don't see your browser for that.
+      </p>
+
+      <p class="foot"><a class="link" href="/#now">Back to Crease</a></p>
+    </main>
+  </body>
+</html>

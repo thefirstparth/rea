@@ -37,7 +37,6 @@ function panelFrom(d) {
         league,
         id: e.id,
         date: Date.parse(e.date) || null,
-        homeId: comps.find((c) => c.homeAway === "home")?.id ?? null,
         teams: comps.map((c) => teamKey(c.team?.displayName)),
         link: e.links?.find((l) => /\/game\//.test(l.href ?? ""))?.href ?? null,
       });
@@ -145,21 +144,29 @@ function eventOf(item) {
 
 // One ESPN item becomes up to four entries: blog text before the ball, the ball, an
 // end-of-over card, blog text after. `ts` orders them (sequence * 4 + slot) and is unique.
-function expand(item, homeId) {
+// The delivery itself. Blog-only entries carry no ball: no row for them, just notes.
+function ballOf(item, seq) {
+  if (!item.shortText?.trim() && !item.text?.trim()) return null;
+  const actual = item.over?.actual;
+  return {
+    kind: "ball",
+    ts: seq + 1,
+    inn: item.innings?.number ?? item.period ?? null,
+    ball: typeof actual === "number" ? actual : null,
+    event: eventOf(item),
+    html: `<b>${cleanHtml(item.shortText ?? "")}</b>${item.text ? `, ${cleanHtml(item.text)}` : ""}`,
+  };
+}
+
+function expand(item) {
   const seq = (item.sequence ?? Number(item.id)) * 4;
   const out = [];
   const blog = (html, slot) =>
     html && out.push({ kind: "note", ts: seq + slot, html: cleanHtml(html) });
   blog(item.preText, 0);
   const o = item.over ?? {};
-  out.push({
-    kind: "ball",
-    ts: seq + 1,
-    inn: item.innings?.number ?? item.period ?? null,
-    ball: typeof o.actual === "number" ? o.actual : null,
-    event: eventOf(item),
-    html: `<b>${cleanHtml(item.shortText)}</b>${item.text ? `, ${cleanHtml(item.text)}` : ""}`,
-  });
+  const ball = ballOf(item, seq);
+  if (ball) out.push(ball);
   if (o.complete) {
     out.push({
       kind: "over",
@@ -168,10 +175,11 @@ function expand(item, homeId) {
       runs: o.runs ?? 0,
       balls: [],
       team: item.team?.abbreviation ?? "",
-      score:
-        String(item.team?.id) === String(homeId)
-          ? item.homeScore
-          : item.awayScore,
+      // The batting side's innings at the end of the over. homeScore/awayScore are not
+      // reliable for this (a home side 241 all out read "0").
+      score: item.innings
+        ? `${item.innings.runs ?? 0}/${item.innings.wickets ?? 0}`
+        : "",
       bat: [batLine(item.batsman), batLine(item.otherBatsman)].filter(Boolean),
       bowl: item.bowler?.athlete
         ? { name: item.bowler.athlete.displayName, figs: figs(item.bowler) }
@@ -200,15 +208,15 @@ export async function commentary(ev, before) {
       last > 1 && (top.items?.length ?? 0) < 12 ? [last - 1, last] : [last];
   }
   const pages = await Promise.all(nums.map((n) => page(ev, n)));
-  return commentaryFrom(pages, ev.homeId, nums[0]);
+  return commentaryFrom(pages, nums[0]);
 }
 
 // Newest first; `oldest` is the lowest page number included.
-function commentaryFrom(pages, homeId, oldest) {
+function commentaryFrom(pages, oldest) {
   const items = pages
     .flatMap((p) => p.items ?? [])
     .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
-    .flatMap((i) => expand(i, homeId))
+    .flatMap(expand)
     .reverse();
   return { items, olderPage: oldest > 1 ? oldest - 1 : null };
 }

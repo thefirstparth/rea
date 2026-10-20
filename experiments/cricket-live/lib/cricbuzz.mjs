@@ -297,8 +297,6 @@ function seriesFixtures(id) {
   );
 }
 
-// The current or next IPL season from Cricbuzz's series calendar. Its dates are
-// Cricbuzz's listing and can precede the official fixture release.
 // Every league series by month, from the league schedule page. The /api/series/schedule
 // route looked similar but lists only series Cricbuzz streams in the caller's country,
 // so from India (where the server runs) it left out the IPL.
@@ -343,6 +341,23 @@ export async function schedule() {
   if (ipl.status === "rejected" && india.status === "rejected")
     throw india.reason;
   const series = ipl.status === "fulfilled" ? ipl.value : null;
+  // The results page stops at ten matches, which can cut a series in half; each
+  // series it shows is completed from that series' own page.
+  const done = results.status === "fulfilled" ? results.value : [];
+  const seriesIds = [...new Set(done.map((m) => m.seriesId).filter(Boolean))];
+  const full = await Promise.allSettled(
+    seriesIds.slice(0, 4).map((id) => seriesFixtures(id)),
+  );
+  const resultsById = new Map(done.map((m) => [m.id, m]));
+  for (const r of full)
+    if (r.status === "fulfilled")
+      for (const m of r.value)
+        if (
+          m.phase === "done" &&
+          m.tags.includes("india") &&
+          !resultsById.has(m.id)
+        )
+          resultsById.set(m.id, m);
   let iplFixtures = [];
   if (series) {
     try {
@@ -354,16 +369,19 @@ export async function schedule() {
   return {
     asOf: Date.now(),
     // Which parts failed, so the app can say "couldn't load" rather than "none".
-    failed: Object.entries({ ipl, india, indiaResults: results })
-      .filter(([, r]) => r.status === "rejected")
-      .map(([part]) => part),
+    failed: [
+      ...Object.entries({ ipl, india, indiaResults: results })
+        .filter(([, r]) => r.status === "rejected")
+        .map(([part]) => part),
+      ...(full.some((r) => r.status === "rejected") ? ["resultSeries"] : []),
+    ],
     india: (india.status === "fulfilled" ? india.value : [])
       .filter((m) => m.phase !== "done")
       .sort((a, b) => (a.start ?? 0) - (b.start ?? 0)),
     // Null when the results page failed: unknown, not "no results".
     indiaResults:
       results.status === "fulfilled"
-        ? results.value
+        ? [...resultsById.values()]
             .filter((m) => m.phase === "done")
             .sort((a, b) => (b.start ?? 0) - (a.start ?? 0))
         : null,

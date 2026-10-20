@@ -259,11 +259,7 @@ test("Cricinfo: fixture lookup, match info and live-blog commentary", (t) => {
       return json("ci-pbp-first.json");
     }
   })();
-  const { items, olderPage } = ci.commentary(
-    [last],
-    ev.homeId,
-    last.pageIndex ?? 1,
-  );
+  const { items, olderPage } = ci.commentary([last], last.pageIndex ?? 1);
   const ts = items.map((i) => i.ts);
   assert.equal(new Set(ts).size, ts.length, "each entry has its own ts");
   assert.deepEqual(
@@ -272,6 +268,18 @@ test("Cricinfo: fixture lookup, match info and live-blog commentary", (t) => {
   );
   for (const i of items)
     if (i.html) assert.doesNotMatch(i.html, /<a\b|<script/i);
+  // Regressions: over summaries carry the batting side's real score (homeScore read
+  // "0" for a side 241 all out), and blog-only entries add no empty ball row.
+  for (const o of items.filter((i) => i.kind === "over"))
+    assert.match(o.score, /^\d+\/\d+$/);
+  for (const b of items.filter((i) => i.kind === "ball"))
+    assert.ok(b.html.replace(/<[^>]+>/g, "").trim(), "ball row has text");
+  const raw = last.items.find((i) => i.over?.complete && i.innings);
+  if (raw)
+    assert.equal(
+      items.find((i) => i.kind === "over" && i.over === raw.over.number)?.score,
+      `${raw.innings.runs}/${raw.innings.wickets}`,
+    );
   assert.equal(
     olderPage,
     (last.pageIndex ?? 1) > 1 ? last.pageIndex - 1 : null,
