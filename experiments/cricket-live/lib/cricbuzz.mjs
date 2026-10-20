@@ -330,19 +330,75 @@ function seriesFixtures(id) {
 // so from India (where the server runs) it left out the IPL.
 const LEAGUE_SCHEDULE = "/cricket-schedule/series/league";
 
+const seriesEntry = (x) => ({
+  id: x.id,
+  name: x.name ?? "",
+  start: Number(x.startDt) || null,
+  end: Number(x.endDt) || null,
+});
+
 function leagueSeriesFrom(flight) {
   const months = valueAfter(flight, "seriesScheduleData");
   // Missing data is a changed page, not an empty calendar: report it as a failure.
   if (!Array.isArray(months))
     throw new UpstreamError("Cricbuzz's league schedule has no series list");
-  return months
-    .flatMap((month) => month?.series ?? [])
-    .map((x) => ({
-      id: x.id,
-      name: x.name ?? "",
-      start: Number(x.startDt) || null,
-      end: Number(x.endDt) || null,
-    }));
+  return months.flatMap((month) => month?.series ?? []).map(seriesEntry);
+}
+
+// Every value of `key` on a page, in page order.
+function valuesOf(text, key) {
+  const out = [];
+  for (
+    let at = text.indexOf(`"${key}":`);
+    at >= 0;
+    at = text.indexOf(`"${key}":`, at + 1)
+  )
+    out.push(jsonAt(text, at + key.length + 3));
+  return out;
+}
+
+// Every series of a year, finished ones included, from Cricbuzz's archive page, which
+// lists them once per category (international, league, domestic, women).
+function archiveSeriesFrom(flight) {
+  const lists = valuesOf(flight, "seriesMapProto").filter(Array.isArray);
+  if (!lists.length)
+    throw new UpstreamError("Cricbuzz's series archive has no series list");
+  const byId = new Map();
+  for (const x of lists.flat().flatMap((y) => y?.series ?? []))
+    if (!byId.has(x.id)) byId.set(x.id, seriesEntry(x));
+  return [...byId.values()];
+}
+
+function archiveSeries(year) {
+  return cached(`archive:${year}`, 24 * 3600000, async () =>
+    archiveSeriesFrom(await getFlight(`/cricket-scorecard-archives/${year}`)),
+  );
+}
+
+// The latest IPL season that has finished, from this year's and last year's archives;
+// with it, its final (the champion is that match's winner). Null when none is found.
+async function previousIpl(now = Date.now()) {
+  const year = new Date(now).getUTCFullYear();
+  const lists = await Promise.allSettled([
+    archiveSeries(year),
+    archiveSeries(year - 1),
+  ]);
+  if (lists.every((r) => r.status === "rejected")) throw lists[0].reason;
+  const season = lists
+    .flatMap((r) => (r.status === "fulfilled" ? r.value : []))
+    .filter((x) => isIpl(x.name) && x.end && x.end < now)
+    .sort((a, b) => b.end - a.end)[0];
+  if (!season) return null;
+  let final = null;
+  try {
+    final =
+      (await seriesFixtures(season.id)).find(
+        (m) => m.phase === "done" && /^final$/i.test(m.desc),
+      ) ?? null;
+  } catch {
+    // The season and its table still show without the final.
+  }
+  return { ...season, final };
 }
 
 function iplSeriesFrom(series, now) {
@@ -361,10 +417,11 @@ async function iplSeries() {
 }
 
 export async function schedule() {
-  const [ipl, india, results] = await Promise.allSettled([
+  const [ipl, india, results, iplLast] = await Promise.allSettled([
     iplSeries(),
     teamFixtures(INDIA_TEAM),
     teamFixtures(INDIA_TEAM, "results"),
+    previousIpl(),
   ]);
   if (ipl.status === "rejected" && india.status === "rejected")
     throw india.reason;
@@ -398,7 +455,7 @@ export async function schedule() {
     asOf: Date.now(),
     // Which parts failed, so the app can say "couldn't load" rather than "none".
     failed: [
-      ...Object.entries({ ipl, india, indiaResults: results })
+      ...Object.entries({ ipl, india, indiaResults: results, iplLast })
         .filter(([, r]) => r.status === "rejected")
         .map(([part]) => part),
       ...(full.some((r) => r.status === "rejected") ? ["resultSeries"] : []),
@@ -419,7 +476,144 @@ export async function schedule() {
           fixtures: iplFixtures.sort((a, b) => (a.start ?? 0) - (b.start ?? 0)),
         }
       : null,
+    // The last finished IPL season, for its table and champion between seasons.
+    iplLast: iplLast.status === "fulfilled" ? iplLast.value : null,
   };
+}
+
+// ICC men's events: World Cups (ODI and T20) and the Champions Trophy. Qualifiers
+// and regional events are left out.
+const ICC_EVENT = /\b(world cup|champions trophy)\b/i;
+const NOT_MAIN_EVENT =
+  /qualifier|regional|league 2|challenge|under-?19|\bu19\b/i;
+const isIccEvent = (name) => ICC_EVENT.test(name) && !NOT_MAIN_EVENT.test(name);
+
+// The ICC event India play next, or are playing: found by name among India's fixtures
+// and recent results, so each one is picked up without naming it. Its dates and every
+// match come from the series' own page. Null when India have none ahead.
+export async function tournament(now = Date.now()) {
+  const [ahead, done] = await Promise.allSettled([
+    teamFixtures(INDIA_TEAM),
+    teamFixtures(INDIA_TEAM, "results"),
+  ]);
+  if (ahead.status === "rejected" && done.status === "rejected")
+    throw ahead.reason;
+  const seen = new Map();
+  for (const m of [ahead, done].flatMap((r) =>
+    r.status === "fulfilled" ? r.value : [],
+  ))
+    if (m.seriesId && isIccEvent(m.series) && !seen.has(m.seriesId))
+      seen.set(m.seriesId, m.series);
+  const events = [];
+  for (const [id, name] of seen) {
+    const fixtures = (await seriesFixtures(id)).sort(
+      (a, b) => (a.start ?? 0) - (b.start ?? 0),
+    );
+    if (!fixtures.length) continue;
+    const start = fixtures[0].start;
+    // A match's start plus a day covers its end; the last match ends the event.
+    const end = (fixtures.at(-1).start ?? start) + 864e5;
+    if (end >= now) events.push({ id, name, start, end, fixtures });
+  }
+  events.sort((a, b) => a.start - b.start);
+  return { asOf: Date.now(), event: events[0] ?? null };
+}
+
+// A team's fixtures ahead and its latest results, for any Cricbuzz team id: India,
+// another country, or an IPL side.
+export async function teamSchedule(id) {
+  const [ahead, done] = await Promise.allSettled([
+    teamFixtures(id),
+    teamFixtures(id, "results"),
+  ]);
+  if (ahead.status === "rejected" && done.status === "rejected")
+    throw ahead.reason;
+  return {
+    asOf: Date.now(),
+    failed: [ahead, done].some((r) => r.status === "rejected"),
+    ahead: (ahead.status === "fulfilled" ? ahead.value : [])
+      .filter((m) => m.phase !== "done")
+      .sort((a, b) => (a.start ?? 0) - (b.start ?? 0)),
+    results: (done.status === "fulfilled" ? done.value : [])
+      .filter((m) => m.phase === "done")
+      .sort((a, b) => (b.start ?? 0) - (a.start ?? 0)),
+  };
+}
+
+// ---------- points tables
+
+// One team's row. Its fixtures in the competition give its form (latest first: W, L,
+// or N for no result or a tie) and its next match.
+function tableTeam(t) {
+  const games = Array.isArray(t.teamMatches) ? t.teamMatches : [];
+  const played = games
+    .filter((g) => g.result)
+    .sort((a, b) => (b.startdt ?? 0) - (a.startdt ?? 0));
+  const next = games
+    .filter((g) => !g.result)
+    .sort((a, b) => (a.startdt ?? 0) - (b.startdt ?? 0))[0];
+  return {
+    id: t.teamId,
+    name: t.teamFullName ?? t.teamName ?? "",
+    short: t.teamName ?? "",
+    flag: flagUrl(t.teamImageId),
+    played: t.matchesPlayed ?? 0,
+    won: t.matchesWon ?? 0,
+    lost: t.matchesLost ?? 0,
+    tied: t.matchesTied ?? 0,
+    nr: t.noRes ?? 0,
+    drawn: t.matchesDrawn ?? 0,
+    nrr: t.nrr ?? "",
+    points: t.points ?? 0,
+    // Q: through to the next stage; E: knocked out.
+    status:
+      t.teamQualifyStatus === "Q"
+        ? "in"
+        : t.teamQualifyStatus === "E"
+          ? "out"
+          : "",
+    form: played
+      .slice(0, 5)
+      .map((g) => (g.winner === t.teamId ? "W" : g.winner ? "L" : "N")),
+    next: next
+      ? {
+          id: next.matchId,
+          desc: next.matchName ?? "",
+          vs: next.opponentSName ?? next.opponent ?? "",
+          start: Number(next.startdt) || null,
+        }
+      : null,
+  };
+}
+
+// The series' own table: "pointsTableData" carries its series id, so a page that also
+// holds other series' data can't hand over the wrong table. Null when the series has
+// none (a bilateral series, or a season whose table isn't published yet).
+function pointsTableFrom(flight, id) {
+  const data = valuesOf(flight, "pointsTableData").find(
+    (d) => String(d?.seriesId) === String(id),
+  );
+  if (!Array.isArray(data?.pointsTable)) return null;
+  return data.pointsTable
+    .map((g) => ({
+      name: g.groupName ?? "",
+      qualify: g.no_of_qual ?? 0,
+      teams: (g.pointsTableInfo ?? []).map(tableTeam),
+    }))
+    .filter((g) => g.teams.length);
+}
+
+export async function pointsTable(id) {
+  const { value: flight, at } = await cachedAt(`table:${id}`, 300000, () =>
+    getFlight(`/cricket-series/${id}/x/points-table`),
+  );
+  const groups = pointsTableFrom(flight, id);
+  if (!groups?.length)
+    throw new UpstreamError(
+      "Cricbuzz has no points table for this series",
+      404,
+    );
+  return { asOf: at, id: Number(id), groups };
 }
 
 // ---------- commentary
@@ -859,6 +1053,9 @@ export const parse = {
   fixtures: fixturesFrom,
   seriesFixtures: seriesFixturesFrom,
   leagueSeries: leagueSeriesFrom,
+  archiveSeries: archiveSeriesFrom,
+  isIccEvent,
+  pointsTable: pointsTableFrom,
   iplSeries: iplSeriesFrom,
   match: matchFrom,
   commentary: commList,

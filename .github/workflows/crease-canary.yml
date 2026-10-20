@@ -1,0 +1,61 @@
+name: Crease canary
+
+# Once a day, check the deployed Crease (experiments/cricket-live) against its live
+# sources through the app's own API: Cricbuzz's pages and feeds, ESPN's API, and the
+# Vercel deployment. A failure opens (or comments on) one issue labelled
+# crease-canary, which notifies the repository's watchers; the next passing run closes it.
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: crease-canary
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    name: Live sources
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CREASE_URL: ${{ vars.CREASE_URL || 'https://trycrease.vercel.app' }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+      - name: Check the live sources through the deployed app
+        id: canary
+        continue-on-error: true
+        run: |
+          node experiments/cricket-live/test/canary.mjs "$CREASE_URL" > canary.md
+          cat canary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Open or update the issue
+        if: steps.canary.outcome == 'failure'
+        run: |
+          cat canary.md >> "$GITHUB_STEP_SUMMARY"
+          printf '\nRun: %s/%s/actions/runs/%s\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> canary.md
+          open=$(gh issue list --label crease-canary --state open --json number --jq '.[0].number // empty')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --body-file canary.md
+          else
+            gh label create crease-canary --color d93f0b --description "Crease's daily live-source check" --force
+            gh issue create --title "Crease: a live source check failed" --label crease-canary --body-file canary.md
+          fi
+          exit 1
+      - name: Close the issue once the sources work again
+        if: steps.canary.outcome == 'success'
+        run: |
+          for n in $(gh issue list --label crease-canary --state open --json number --jq '.[].number'); do
+            gh issue close "$n" --comment "The daily check passes again: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          done

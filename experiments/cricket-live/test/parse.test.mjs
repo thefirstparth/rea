@@ -334,17 +334,53 @@ test("Cricinfo: fixture lookup, match info and live-blog commentary", (t) => {
   );
 });
 
-test("Cricinfo IPL scoreboard: season window and latest result", () => {
-  const s = ci.iplSeason(json("ci-ipl.json"));
-  assert.ok(s.seasonStart && s.seasonEnd && s.seasonStart < s.seasonEnd);
-  for (const m of s.latest) {
-    assert.equal(m.sides.length, 2);
-    // The card shows each side's own logo and abbreviation, not initials of its name.
-    for (const x of m.sides) {
-      assert.match(x.short, /^[A-Z]{2,5}$/);
-      assert.match(x.logo, /^https:\/\/.+\.png$/);
-    }
+test("points tables: a finished league in order, a group tournament before a ball", () => {
+  const [ipl] = cb.pointsTable(read("cb-points-ipl.flight.txt"), 9241);
+  assert.equal(ipl.teams.length, 10);
+  assert.equal(ipl.qualify, 4);
+  // Table order: points never rise down the table.
+  for (let i = 1; i < ipl.teams.length; i++)
+    assert.ok(ipl.teams[i].points <= ipl.teams[i - 1].points);
+  for (const t of ipl.teams) {
+    assert.equal(t.played, t.won + t.lost + t.tied + t.nr + t.drawn);
+    assert.match(t.short, /^[A-Z]{2,5}$/);
+    assert.ok(t.form.length <= 5 && t.form.every((f) => /^[WLN]$/.test(f)));
+    assert.equal(t.next, null, "a finished season has nothing next");
   }
+  assert.equal(ipl.teams.filter((t) => t.status === "in").length, 4);
+
+  const groups = cb.pointsTable(read("cb-points-tournament.flight.txt"), 13289);
+  assert.ok(groups.length >= 2);
+  const india = groups.flatMap((g) => g.teams).find((t) => t.short === "IND");
+  assert.ok(india, "India is in a group");
+  assert.equal(india.played, 0);
+  assert.ok(india.next?.start > 0 && india.next.vs);
+  // Another series' id finds nothing: never someone else's table.
+  assert.equal(cb.pointsTable(read("cb-points-ipl.flight.txt"), 13289), null);
+});
+
+test("ICC events are told apart from their qualifiers by name", () => {
+  for (const name of [
+    "ICC Men's Cricket World Cup 2027",
+    "ICC Men's T20 World Cup 2026",
+    "ICC Champions Trophy 2029",
+  ])
+    assert.ok(cb.isIccEvent(name), name);
+  for (const name of [
+    "ICC Men's T20 World Cup Asia Sub Regional Qualifier B 2026",
+    "ICC Men's Cricket World Cup League 2 2027",
+    "ICC Under-19 Men's Cricket World Cup 2028",
+    "India tour of New Zealand 2026",
+  ])
+    assert.ok(!cb.isIccEvent(name), name);
+});
+
+test("the series archive lists finished seasons with their dates", () => {
+  const all = cb.archiveSeries(read("cb-archive.flight.txt"));
+  const ipl = all.find((x) => x.name === "Indian Premier League 2026");
+  assert.equal(ipl?.id, 9241);
+  assert.ok(ipl.start < ipl.end);
+  assert.throws(() => cb.archiveSeries('"other":[]'), /no series list/);
 });
 
 test("commentary sanitiser keeps b/i/br, unwraps links, escapes the rest", () => {

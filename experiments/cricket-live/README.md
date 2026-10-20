@@ -53,20 +53,22 @@ its source's formats and normalises into the shapes the client reads. The
 server composes them: Cricbuzz match ids drive every route, and the Cricinfo
 event is found from the same fixture.
 
-| App route                                  | Cricbuzz source                                                                                 | Cache                    |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------------- | ------------------------ |
-| `GET /api/matches`                         | live, recent and upcoming list pages (RSC payload) and `/api/home`                              | 15s to 5m                |
-| `GET /api/match/:id`                       | `/api/mcenter/comm/:id` (header, miniscore, latest commentary)                                  | 10s                      |
-| `GET /api/match/:id/commentary?inn&before` | `/api/mcenter/commentary-pagination/:id/:inn/:beforeTimestamp`                                  | 60s                      |
-| `GET /api/match/:id/scorecard`             | `/live-cricket-scorecard/:id/x` page, `scoreCard` in the RSC payload                            | 10s                      |
-| `GET /api/schedule`                        | India's team schedule and results pages (team 2), the league schedule page, the IPL series page | 30m (league schedule 6h) |
-| `GET /api/match/:id/squads`                | `/cricket-match-squads/:id/x` page, `team1`/`team2` in the RSC payload                          | 60s                      |
+| App route                                  | Cricbuzz source                                                                                                                                                                                               | Cache                                 |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `GET /api/matches`                         | live, recent and upcoming list pages (RSC payload) and `/api/home`                                                                                                                                            | 15s to 5m                             |
+| `GET /api/match/:id`                       | `/api/mcenter/comm/:id` (header, miniscore, latest commentary)                                                                                                                                                | 10s                                   |
+| `GET /api/match/:id/commentary?inn&before` | `/api/mcenter/commentary-pagination/:id/:inn/:beforeTimestamp`                                                                                                                                                | 60s                                   |
+| `GET /api/match/:id/scorecard`             | `/live-cricket-scorecard/:id/x` page, `scoreCard` in the RSC payload                                                                                                                                          | 10s                                   |
+| `GET /api/schedule`                        | India's team schedule and results pages (team 2), the league schedule page, the IPL series page, this and last year's series archive (`/cricket-scorecard-archives/:year`, for last IPL season and its final) | 30m (league schedule 6h, archive 24h) |
+| `GET /api/series/:id/table`                | `/cricket-series/:id/x/points-table` page, `pointsTableData` for that series id                                                                                                                               | 5m                                    |
+| `GET /api/tournament`                      | the ICC event (World Cup, T20 World Cup, Champions Trophy) found by name in India's schedule and results, with every match from its series page                                                               | 10m                                   |
+| `GET /api/team/:id`                        | `/cricket-team/x/:id/schedule` and `/results` pages, for any team (a country or an IPL side)                                                                                                                  | 30m                                   |
+| `GET /api/match/:id/squads`                | `/cricket-match-squads/:id/x` page, `team1`/`team2` in the RSC payload                                                                                                                                        | 60s                                   |
 
 | App route                                       | Cricinfo source (ESPN API)                                      | Cache |
 | ----------------------------------------------- | --------------------------------------------------------------- | ----- |
 | `GET /api/match/:id/cricinfo`                   | `/{league}/summary?event=` (officials, notes, debuts, venue)    | 60s   |
 | `GET /api/match/:id/cricinfo/commentary[?page]` | `/{league}/playbyplay?event=&page=` (balls plus live-blog text) | 15s   |
-| `GET /api/ipl`                                  | `/8048/scoreboard` (season calendar, latest result)             | 1h    |
 
 Event lookup uses `/scorepanel` (cached 30s). Cricinfo routes return
 `{ "available": false }` when no Cricinfo event matches the fixture.
@@ -147,6 +149,49 @@ sanitised, no `$undefined`. Re-capturing therefore refreshes the evidence
 without rewriting tests. The scorecard venue regression fails when the old
 first-`matchInfo` lookup is put back.
 
+The browser tests (`test/ui.test.mjs`, `test/ui-scenarios.test.mjs`, over the
+harness in `test/ui-harness.mjs`) replay `test/fixtures/ui-api.json`, recorded
+by `test/capture-ui.mjs` while following an IPL side with the World Cup tab on.
+Every view is audited for overlap, overflow, clipping, contrast and tap size at
+320, 390 and 1280px in light and dark. The scenarios move the clock and the
+data: the worst live match to lay out, the IPL tab between seasons and
+mid-season (the recorded 2026 season, half of it turned back into fixtures), and
+the World Cup tab a week before its event and under each setting.
+
+## Keeping it running
+
+Nothing in Crease names a season, a year or a series: the IPL season comes from
+Cricbuzz's league schedule, the last one from its yearly archive, the ICC event
+from India's fixtures, a followed team from its team page. So the app moves from
+season to season and event to event on its own, for as long as its sources keep
+their formats.
+
+`.github/workflows/crease-canary.yml` checks that every day. It runs
+`test/canary.mjs` against the deployed app (`vars.CREASE_URL`, default
+https://trycrease.vercel.app): the page, the match lists, the schedules and
+archive, an IPL points table, the ICC event, a team page, a match centre with
+its scorecard and squads, and Cricinfo for the same match. Each check asserts
+only what holds on any day. A failure opens one issue labelled `crease-canary`
+(later failures comment on it), and the next passing run closes it. Run it by
+hand with `node experiments/cricket-live/test/canary.mjs [url]`, or from the
+Actions tab. GitHub pauses scheduled workflows in a repository with no activity
+for 60 days and emails before it does; re-enable it from the Actions tab.
+
+### When a source changes
+
+1. The failing check names the route and what broke (an HTTP status, or a
+   missing field). Reproduce it locally: `NODE_USE_ENV_PROXY=1 node
+   experiments/cricket-live/server.mjs`, then the canary against
+   `http://localhost:5173`.
+2. Find the parser: every route and its source page are listed under "How it
+   works"; each adapter (`lib/cricbuzz.mjs`, `lib/cricinfo.mjs`) is the only
+   place that knows its source's format, and exports its parsers as `parse`.
+3. Re-record the fixtures (`test/capture.mjs`, then `test/capture-ui.mjs`
+   against a running local server), run the tests, and fix the parser until
+   they pass. The invariants don't need rewriting for new data.
+4. "Cricbuzz returned 403" on Vercel but not locally means the source blocks
+   Vercel's network, not a format change (see Limits).
+
 ## Front end
 
 - **Now** (home) is only what matters now: the live India or IPL match, else
@@ -169,7 +214,7 @@ first-`matchInfo` lookup is put back.
   choice is remembered in `localStorage`.
 - **Settings** (the gear): 12- or 24-hour time (default: the locale's), and
   light, dark or the device's theme. **About & privacy** (`/about.html`) says
-  where the data comes from, what is stored (four `localStorage` keys, no
+  where the data comes from, what is stored (six `localStorage` keys, no
   cookies, no analytics) and which other sites the browser contacts.
 - Every time on screen names its zone ("12:30 pm IST"); the match Info tab adds
   India's time only for readers elsewhere. Dates are in English, like the rest
@@ -201,6 +246,25 @@ first-`matchInfo` lookup is put back.
   format ("ODIs: IND won 2–1") replaces a single mixed tally. On the India tab
   each recent series is one closed line ("ODIs IND 2–1 · T20Is 2–2 · 1 NR") that
   opens to its chips and matches; each series ahead leads with a calendar tile.
+- **Matchday poster**: when no India or IPL match is live, home leads with the
+  next one as a poster: both sides' flags on their team colours (darkened until
+  white text passes WCAG AA), the countdown to the first ball, and the start in
+  IST and at the ground.
+- **IPL**: while a season runs (first match to three days after the last), the
+  next match, the points table, fixtures and results. Between seasons, the next
+  season's dates as Cricbuzz lists them, and the last finished season (found by
+  name in Cricbuzz's yearly archive) with its champion and final table. Nothing
+  names a year: each season is found from the data.
+- **World Cup**: an ICC men's event India play in (found by name, qualifiers left
+  out) gets a fifth tab: a countdown, India's matches, the group tables, the full
+  schedule and results. Settings → World Cup tab: Automatic (default: from two
+  weeks before its first match to two days after its last), Always, or Off,
+  stored in `crease-wc`. The next event is picked up the same way, without code.
+- **Following a team**: tap a team in a points table, or pick one in Settings
+  (IPL sides from the tables, countries from the known fixtures). Its live match
+  joins Now, its next fixture shows as "Your team" (from its Cricbuzz team page),
+  and alerts include its matches. Between IPL seasons an IPL side shows its last
+  finish and the next season's start. The choice is stored in `crease-team`.
 - **Alerts** (the bell): for India and IPL matches, a notification when a match
   starts, for each wicket (with the dismissal), when a decision is reviewed and
   again with its outcome (the outcome replaces the first), for a batter's fifty

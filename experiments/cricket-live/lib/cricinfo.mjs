@@ -5,7 +5,6 @@
 //   /scorepanel                         every current event, grouped by league
 //   /{league}/summary?event={id}        officials, notes, debuts, venue, rosters, scorecard
 //   /{league}/playbyplay?event={id}     ball-by-ball with the live blog (pre/postText), 25 per page, oldest first
-//   /{league}/scoreboard                a league's season calendar and latest events (IPL is 8048)
 // Cricbuzz stays the live spine; this module adds what Cricinfo does better.
 
 import { cached, getJson } from "./http.mjs";
@@ -13,7 +12,6 @@ import { cleanHtml } from "./html.mjs";
 
 const API = "https://site.web.api.espn.com/apis/site/v2/sports/cricket";
 const SOURCE = "Cricinfo";
-const IPL_LEAGUE = "8048";
 const SAME_MATCH_MS = 36 * 3600 * 1000;
 
 const json = (path) => getJson(API + path, SOURCE);
@@ -221,52 +219,10 @@ function commentaryFrom(pages, oldest) {
   return { items, olderPage: oldest > 1 ? oldest - 1 : null };
 }
 
-// ---------- IPL season
-
-function iplSeasonFrom(d) {
-  const lg = d?.leagues?.[0];
-  const cal = lg?.calendar ?? [];
-  const latest = (d?.events ?? []).map((e) => {
-    const c = e.competitions?.[0] ?? {};
-    const sides = (c.competitors ?? []).map((x) => ({
-      name: x.team?.displayName ?? "",
-      short: x.team?.abbreviation ?? null,
-      logo: x.team?.logo || null,
-      score: x.score ?? "",
-      won: String(x.winner) === "true",
-    }));
-    const potm = c.status?.featuredAthletes?.find(
-      (f) => f.abbreviation === "POTM",
-    );
-    return {
-      name: e.name ?? "",
-      date: Date.parse(e.date) || null,
-      state: c.status?.type?.description ?? "",
-      sides,
-      winner: sides.find((s) => s.won)?.name ?? null,
-      potm: potm?.athlete?.displayName ?? null,
-      link:
-        e.links?.find((l) => /\/scorecard\//.test(l.href ?? ""))?.href ?? null,
-    };
-  });
-  return {
-    seasonStart: Date.parse(cal[0]) || null,
-    seasonEnd: Date.parse(cal.at(-1)) || null,
-    latest,
-  };
-}
-
-export async function iplSeason() {
-  return iplSeasonFrom(
-    await cached("ci:ipl", 3600000, () => json(`/${IPL_LEAGUE}/scoreboard`)),
-  );
-}
-
 // Pure parsers over captured upstream payloads, for the fixture tests.
 export const parse = {
   panel: panelFrom,
   event: eventIn,
   info: infoFrom,
   commentary: commentaryFrom,
-  iplSeason: iplSeasonFrom,
 };
