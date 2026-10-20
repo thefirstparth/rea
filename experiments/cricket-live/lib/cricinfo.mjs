@@ -27,34 +27,32 @@ const teamKey = (name) =>
     .replace(/\(.*?\)/g, "")
     .replace(/[^a-z]/g, "");
 
-async function panelEvents() {
-  return cached("ci:panel", 30000, async () => {
-    const d = await json("/scorepanel");
-    const out = [];
-    for (const group of d?.scores ?? []) {
-      const league = group.leagues?.[0]?.id;
-      for (const e of group.events ?? []) {
-        const comps = e.competitions?.[0]?.competitors ?? [];
-        out.push({
-          league,
-          id: e.id,
-          date: Date.parse(e.date) || null,
-          homeId: comps.find((c) => c.homeAway === "home")?.id ?? null,
-          teams: comps.map((c) => teamKey(c.team?.displayName)),
-          link:
-            e.links?.find((l) => /\/game\//.test(l.href ?? ""))?.href ?? null,
-        });
-      }
+function panelFrom(d) {
+  const out = [];
+  for (const group of d?.scores ?? []) {
+    const league = group.leagues?.[0]?.id;
+    for (const e of group.events ?? []) {
+      const comps = e.competitions?.[0]?.competitors ?? [];
+      out.push({
+        league,
+        id: e.id,
+        date: Date.parse(e.date) || null,
+        homeId: comps.find((c) => c.homeAway === "home")?.id ?? null,
+        teams: comps.map((c) => teamKey(c.team?.displayName)),
+        link: e.links?.find((l) => /\/game\//.test(l.href ?? ""))?.href ?? null,
+      });
     }
-    return out;
-  });
+  }
+  return out;
 }
+
+const panelEvents = () =>
+  cached("ci:panel", 30000, async () => panelFrom(await json("/scorepanel")));
 
 // Match a Cricbuzz fixture to its Cricinfo event by both team names and start time.
 // Returns null when the event is not in the current panel; unknown is not "absent".
-export async function findEvent({ t1, t2, start }) {
+function eventIn(events, { t1, t2, start }) {
   const want = [teamKey(t1), teamKey(t2)].sort().join("|");
-  const events = await panelEvents();
   return (
     events.find(
       (e) =>
@@ -62,6 +60,10 @@ export async function findEvent({ t1, t2, start }) {
         (!start || !e.date || Math.abs(e.date - start) < SAME_MATCH_MS),
     ) ?? null
   );
+}
+
+export async function findEvent(fixture) {
+  return eventIn(await panelEvents(), fixture);
 }
 
 // ---------- match info
@@ -73,10 +75,7 @@ const NOTE_KEEP = new Set([
   "livecommentator",
 ]);
 
-export async function info(ev) {
-  const d = await cached(`ci:sum:${ev.id}`, 60000, () =>
-    json(`/${ev.league}/summary?event=${ev.id}`),
-  );
+function infoFrom(d, ev) {
   const g = d?.gameInfo ?? {};
   const notes = d?.notes ?? [];
   const pick = (type) =>
@@ -115,6 +114,13 @@ export async function info(ev) {
       }))
       .filter((t) => t.players.length),
   };
+}
+
+export async function info(ev) {
+  const d = await cached(`ci:sum:${ev.id}`, 60000, () =>
+    json(`/${ev.league}/summary?event=${ev.id}`),
+  );
+  return infoFrom(d, ev);
 }
 
 // ---------- live blog commentary
@@ -194,20 +200,22 @@ export async function commentary(ev, before) {
       last > 1 && (top.items?.length ?? 0) < 12 ? [last - 1, last] : [last];
   }
   const pages = await Promise.all(nums.map((n) => page(ev, n)));
+  return commentaryFrom(pages, ev.homeId, nums[0]);
+}
+
+// Newest first; `oldest` is the lowest page number included.
+function commentaryFrom(pages, homeId, oldest) {
   const items = pages
     .flatMap((p) => p.items ?? [])
     .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
-    .flatMap((i) => expand(i, ev.homeId))
+    .flatMap((i) => expand(i, homeId))
     .reverse();
-  return { items, olderPage: nums[0] > 1 ? nums[0] - 1 : null };
+  return { items, olderPage: oldest > 1 ? oldest - 1 : null };
 }
 
 // ---------- IPL season
 
-export async function iplSeason() {
-  const d = await cached("ci:ipl", 3600000, () =>
-    json(`/${IPL_LEAGUE}/scoreboard`),
-  );
+function iplSeasonFrom(d) {
   const lg = d?.leagues?.[0];
   const cal = lg?.calendar ?? [];
   const latest = (d?.events ?? []).map((e) => {
@@ -237,3 +245,18 @@ export async function iplSeason() {
     latest,
   };
 }
+
+export async function iplSeason() {
+  return iplSeasonFrom(
+    await cached("ci:ipl", 3600000, () => json(`/${IPL_LEAGUE}/scoreboard`)),
+  );
+}
+
+// Pure parsers over captured upstream payloads, for the fixture tests.
+export const parse = {
+  panel: panelFrom,
+  event: eventIn,
+  info: infoFrom,
+  commentary: commentaryFrom,
+  iplSeason: iplSeasonFrom,
+};

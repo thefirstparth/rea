@@ -81,11 +81,21 @@ The adapter joins those chunks and pulls out the balanced JSON value after a
 known key. It also converts React's `"$undefined"` sentinel to a real absent
 value.
 
-Cricinfo's own hosts (`www.cricinfo.com`, `www.espncricinfo.com` and
-`hs-consumer-api.espncricinfo.com`) answered every request with an Akamai
-"Access Denied" page from this development environment, so their page code
-could not be inspected. Cricinfo is an ESPN property, and ESPN's public sports
-API serves the same match data under Cricinfo's event ids. A fixture is matched
+Cricinfo's own data API (`hs-consumer-api.cricinfo.com`) answers only browsers
+that have passed its bot check. Plain requests get Akamai "Access Denied". In a
+real Chromium session the site loads, and REA's passive page inspection
+(`rea inspect-web-page … --include-json-body-shapes`, with the API origin added
+via `--allowed-origins`) recorded what the page calls:
+`/v1/pages/match/commentary`, `/v1/pages/match/scorecard`, and
+`/v1/global/fastscore/message/base` for live updates. Its commentary carries 48
+fields per ball against ESPN's 25, including wagon wheel (`wagonX`, `wagonY`,
+`wagonZone`), pitch map (`pitchLine`, `pitchLength`), `shotType`, `shotControl`
+and per-ball win `predictions`. Using it from the server would mean getting
+around that bot protection, so Crease doesn't. At stumps the page made no
+requests in 25 seconds (no polling, no WebSocket).
+
+Cricinfo is an ESPN property, and ESPN's public sports API serves the same
+match data, minus that ball-tracking detail, under Cricinfo's event ids. A fixture is matched
 to its Cricinfo event when both team names agree, after dropping qualifiers
 such as "(India)" and punctuation, and the start times are within 36 hours.
 Commentary pages come oldest first with 25 balls each. The adapter reads the
@@ -113,6 +123,27 @@ Classification:
 - **Phase**: `Preview` and `Upcoming` are upcoming. `Complete`, `Abandon` and
   `No result` are done. Everything else is live. Stumps, lunch, tea, rain and
   other breaks show as paused rather than as a pulsing LIVE badge.
+
+## Tests
+
+```sh
+node --test "experiments/cricket-live/test/*.test.mjs"
+NODE_USE_ENV_PROXY=1 node experiments/cricket-live/test/capture.mjs   # refresh fixtures
+```
+
+The tests run offline against real payloads in `test/fixtures/`, recorded by
+`test/capture.mjs`, which also writes `manifest.json` with the matches it
+followed. Each adapter exports its parsers as `parse`, separate from fetching,
+so the same code is tested that serves the app. Page payloads keep only the
+JSON values the adapter reads, in their original text and order. That includes
+the site-wide ticker's `matchInfo` entries, which the scorecard must not mistake
+for its own. Cricinfo payloads are cut down to the fields the adapter reads.
+
+Most assertions are invariants that hold for any capture: valid men's matches,
+no women's matches, overs never shown as `x.6`, commentary newest first and
+sanitised, no `$undefined`. Re-capturing therefore refreshes the evidence
+without rewriting tests. The scorecard venue regression fails when the old
+first-`matchInfo` lookup is put back.
 
 ## Front end
 

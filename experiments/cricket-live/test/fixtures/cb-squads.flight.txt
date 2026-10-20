@@ -1,0 +1,242 @@
+"team1":{"teamId":96,"teamName":"Afghanistan","teamSName":"AFG","imageId":776177}
+"team2":{"teamId":12,"teamName":"Zimbabwe","teamSName":"ZIM","imageId":776198}
+"team1":{"teamId":11,"teamName":"South Africa","teamSName":"RSA","imageId":776287}
+"team2":{"teamId":4,"teamName":"Australia","teamSName":"AUS","imageId":776202}
+"team1":{"teamId":128,"teamName":"Karnataka","teamSName":"KAR","imageId":776345}
+"team2":{"teamId":94,"teamName":"Saurashtra","teamSName":"SAUR","imageId":172186}
+"team1":{"teamId":3,"teamName":"Pakistan","teamSName":"PAK","imageId":776308}
+"team2":{"teamId":9,"teamName":"England","teamSName":"ENG","imageId":776237}
+"team1":{"teamId":97,"teamName":"India Women","teamSName":"INDW","imageId":776182}
+"team2":{"teamId":388,"teamName":"Zimbabwe Women","teamSName":"ZIMW","imageId":776203}
+"team1":{"teamId":72,"teamName":"Nepal","teamSName":"NEP","imageId":776331}
+"team2":{"teamId":304,"teamName":"Oman","teamSName":"OMAN","imageId":776328}
+"team1":{"teamId":11,"teamName":"South Africa","teamSName":"RSA","imageId":776287}
+"team2":{"teamId":4,"teamName":"Australia","teamSName":"AUS","imageId":776202}
+"team1":{"teamId":3,"teamName":"Pakistan","teamSName":"PAK","imageId":776308}
+"team2":{"teamId":9,"teamName":"England","teamSName":"ENG","imageId":776237}
+"team1":{"teamId":44,"teamName":"Uganda","teamSName":"UGA","imageId":776233}
+"team2":{"teamId":2001,"teamName":"Zambia","teamSName":"ZMB","imageId":506188}
+"team1":{"teamId":570,"teamName":"Lesotho","teamSName":"LSO","imageId":172622}
+"team2":{"teamId":551,"teamName":"Mozambique","teamSName":"MOZ","imageId":172603}
+"team1":{"teamId":536,"teamName":"Nigeria","teamSName":"NGA","imageId":248436}
+"team2":{"teamId":567,"teamName":"Gambia","teamSName":"GM","imageId":172619}
+"team1":{"teamId":72,"teamName":"Nepal","teamSName":"NEP","imageId":776331}
+"team2":{"teamId":304,"teamName":"Oman","teamSName":"OMAN","imageId":776328}
+"team1":{"teamId":96,"teamName":"Afghanistan","teamSName":"AFG","imageId":776177}
+"team2":{"teamId":12,"teamName":"Zimbabwe","teamSName":"ZIM","imageId":776198}
+"team1":{"teamId":90,"teamName":"Dolphins","teamSName":"DOL","imageId":172183}
+"team2":{"teamId":155,"teamName":"Warriors","teamSName":"WAR","imageId":172222}
+"team1":{"teamId":162,"teamName":"Assam","teamSName":"ASM","imageId":172230}
+"team2":{"teamId":247,"teamName":"Tripura","teamSName":"TRI","imageId":172300}
+"team1":{"teamId":460,"teamName":"Bihar","teamSName":"BIH","imageId":172508}
+"team2":{"teamId":170,"teamName":"Baroda","teamSName":"BRD","imageId":172238}
+"team1":{"teamId":465,"teamName":"Puducherry","teamSName":"PDC","imageId":172513}
+"team2":{"teamId":167,"teamName":"Madhya Pradesh","teamSName":"MP","imageId":172236}
+"team1":{"teamId":252,"teamName":"Jammu and Kashmir","teamSName":"JK","imageId":172305}
+"team2":{"teamId":248,"teamName":"Vidarbha","teamSName":"VID","imageId":172301}
+"team1":{"teamId":93,"teamName":"Uttar Pradesh","teamSName":"UP","imageId":172185}
+"team2":{"teamId":253,"teamName":"Goa","teamSName":"GOA","imageId":172306}
+"team1":{"teamId":242,"teamName":"Hyderabad","teamSName":"HYD","imageId":172295}
+"team2":{"teamId":241,"teamName":"Andhra","teamSName":"AP","imageId":172294}
+"team1":{"teamId":128,"teamName":"Karnataka","teamSName":"KAR","imageId":776345}
+"team2":{"teamId":94,"teamName":"Saurashtra","teamSName":"SAUR","imageId":172186}
+"team1":{"teamId":245,"teamName":"Punjab","teamSName":"PUN","imageId":172298}
+"team2":{"teamId":375,"teamName":"Chhattisgarh","teamSName":"CG","imageId":172428}
+"team1":{"teamId":243,"teamName":"Jharkhand","teamSName":"JHKD","imageId":172296}
+"team2":{"teamId":254,"teamName":"Maharashtra","teamSName":"MAH","imageId":172307}
+"team1":{"teamId":81,"teamName":"Delhi","teamSName":"DEL","imageId":172175}
+"team2":{"teamId":163,"teamName":"Gujarat","teamSName":"GUJ","imageId":172232}
+"team1":{"teamId":232,"teamName":"Bengal","teamSName":"BEN","imageId":172285}
+"team2":{"teamId":250,"teamName":"Services","teamSName":"SER","imageId":172303}
+"team1":{"teamId":244,"teamName":"Kerala","teamSName":"KER","imageId":172297}
+"team2":{"teamId":249,"teamName":"Odisha","teamSName":"ODSA","imageId":776395}
+"team1":{"teamId":595,"teamName":"Chandigarh","teamSName":"CDG","imageId":244269}
+"team2":{"teamId":200,"teamName":"Haryana","teamSName":"HAR","imageId":172260}
+"team1":{"teamId":251,"teamName":"Himachal Pradesh","teamSName":"HP","imageId":172304}
+"team2":{"teamId":95,"teamName":"Mumbai","teamSName":"MUM","imageId":172187}
+"team1":{"teamId":467,"teamName":"Uttarakhand","teamSName":"UTK","imageId":172515}
+"team2":{"teamId":92,"teamName":"Tamil Nadu","teamSName":"TN","imageId":172184}
+"team1":{"teamId":171,"teamName":"Rajasthan","teamSName":"RAJ","imageId":172239}
+"team2":{"teamId":246,"teamName":"Railways","teamSName":"RLYS","imageId":172299}
+"team1":{"teamId":462,"teamName":"Meghalaya","teamSName":"MGLY","imageId":172510}
+"team2":{"teamId":461,"teamName":"Manipur","teamSName":"MNP","imageId":172509}
+"team1":{"teamId":463,"teamName":"Mizoram","teamSName":"MIZ","imageId":776489}
+"team2":{"teamId":464,"teamName":"Nagaland","teamSName":"NGL","imageId":776394}
+"team1":{"teamId":468,"teamName":"Arunachal Pradesh","teamSName":"ARNP","imageId":172516}
+"team2":{"teamId":466,"teamName":"Sikkim","teamSName":"SKM","imageId":172514}
+"team1":{"teamId":166,"teamName":"Tasmania","teamSName":"TAS","imageId":172235}
+"team2":{"teamId":52,"teamName":"Victoria","teamSName":"VIC","imageId":172153}
+"team1":{"teamId":158,"teamName":"South Australia","teamSName":"SAUS","imageId":172225}
+"team2":{"teamId":164,"teamName":"Queensland","teamSName":"QL","imageId":172233}
+"team1":{"teamId":104,"teamName":"New South Wales","teamSName":"NSW","imageId":172196}
+"team2":{"teamId":87,"teamName":"Western Australia","teamSName":"WA","imageId":172180}
+"team1":{"teamId":100,"teamName":"Australia Women","teamSName":"AUSW","imageId":776205}
+"team2":{"teamId":98,"teamName":"New Zealand Women","teamSName":"NZW","imageId":776338}
+"team1":{"teamId":97,"teamName":"India Women","teamSName":"INDW","imageId":776182}
+"team2":{"teamId":388,"teamName":"Zimbabwe Women","teamSName":"ZIMW","imageId":776203}
+"team1":{"teamId":355,"teamName":"Adelaide Strikers Women","teamSName":"ADSW","imageId":824978}
+"team2":{"teamId":360,"teamName":"Perth Scorchers Women","teamSName":"PRSW","imageId":824984}
+"team1":{"teamId":362,"teamName":"Sydney Thunder Women","teamSName":"SYTW","imageId":824992}
+"team2":{"teamId":361,"teamName":"Sydney Sixers Women","teamSName":"SYSW","imageId":824990}
+"team1":{"teamId":96,"teamName":"Afghanistan","teamSName":"AFG","imageId":776177}
+"team2":{"teamId":12,"teamName":"Zimbabwe","teamSName":"ZIM","imageId":776198}
+"team1":{"teamId":11,"teamName":"South Africa","teamSName":"RSA","imageId":776287}
+"team2":{"teamId":4,"teamName":"Australia","teamSName":"AUS","imageId":776202}
+"team1":{"teamId":128,"teamName":"Karnataka","teamSName":"KAR","imageId":776345}
+"team2":{"teamId":94,"teamName":"Saurashtra","teamSName":"SAUR","imageId":172186}
+"team1":{"teamId":3,"teamName":"Pakistan","teamSName":"PAK","imageId":776308}
+"team2":{"teamId":9,"teamName":"England","teamSName":"ENG","imageId":776237}
+"team1":{"teamId":97,"teamName":"India Women","teamSName":"INDW","imageId":776182}
+"team2":{"teamId":388,"teamName":"Zimbabwe Women","teamSName":"ZIMW","imageId":776203}
+"team1":{"teamId":72,"teamName":"Nepal","teamSName":"NEP","imageId":776331}
+"team2":{"teamId":304,"teamName":"Oman","teamSName":"OMAN","imageId":776328}
+"team1":{"teamId":11,"teamName":"South Africa","teamSName":"RSA","imageId":776287}
+"team2":{"teamId":4,"teamName":"Australia","teamSName":"AUS","imageId":776202}
+"team1":{"teamId":3,"teamName":"Pakistan","teamSName":"PAK","imageId":776308}
+"team2":{"teamId":9,"teamName":"England","teamSName":"ENG","imageId":776237}
+"team1":{"teamId":44,"teamName":"Uganda","teamSName":"UGA","imageId":776233}
+"team2":{"teamId":2001,"teamName":"Zambia","teamSName":"ZMB","imageId":506188}
+"team1":{"teamId":570,"teamName":"Lesotho","teamSName":"LSO","imageId":172622}
+"team2":{"teamId":551,"teamName":"Mozambique","teamSName":"MOZ","imageId":172603}
+"team1":{"teamId":536,"teamName":"Nigeria","teamSName":"NGA","imageId":248436}
+"team2":{"teamId":567,"teamName":"Gambia","teamSName":"GM","imageId":172619}
+"team1":{"teamId":72,"teamName":"Nepal","teamSName":"NEP","imageId":776331}
+"team2":{"teamId":304,"teamName":"Oman","teamSName":"OMAN","imageId":776328}
+"team1":{"teamId":96,"teamName":"Afghanistan","teamSName":"AFG","imageId":776177}
+"team2":{"teamId":12,"teamName":"Zimbabwe","teamSName":"ZIM","imageId":776198}
+"team1":{"teamId":90,"teamName":"Dolphins","teamSName":"DOL","imageId":172183}
+"team2":{"teamId":155,"teamName":"Warriors","teamSName":"WAR","imageId":172222}
+"team1":{"teamId":162,"teamName":"Assam","teamSName":"ASM","imageId":172230}
+"team2":{"teamId":247,"teamName":"Tripura","teamSName":"TRI","imageId":172300}
+"team1":{"teamId":460,"teamName":"Bihar","teamSName":"BIH","imageId":172508}
+"team2":{"teamId":170,"teamName":"Baroda","teamSName":"BRD","imageId":172238}
+"team1":{"teamId":465,"teamName":"Puducherry","teamSName":"PDC","imageId":172513}
+"team2":{"teamId":167,"teamName":"Madhya Pradesh","teamSName":"MP","imageId":172236}
+"team1":{"teamId":252,"teamName":"Jammu and Kashmir","teamSName":"JK","imageId":172305}
+"team2":{"teamId":248,"teamName":"Vidarbha","teamSName":"VID","imageId":172301}
+"team1":{"teamId":93,"teamName":"Uttar Pradesh","teamSName":"UP","imageId":172185}
+"team2":{"teamId":253,"teamName":"Goa","teamSName":"GOA","imageId":172306}
+"team1":{"teamId":242,"teamName":"Hyderabad","teamSName":"HYD","imageId":172295}
+"team2":{"teamId":241,"teamName":"Andhra","teamSName":"AP","imageId":172294}
+"team1":{"teamId":128,"teamName":"Karnataka","teamSName":"KAR","imageId":776345}
+"team2":{"teamId":94,"teamName":"Saurashtra","teamSName":"SAUR","imageId":172186}
+"team1":{"teamId":245,"teamName":"Punjab","teamSName":"PUN","imageId":172298}
+"team2":{"teamId":375,"teamName":"Chhattisgarh","teamSName":"CG","imageId":172428}
+"team1":{"teamId":243,"teamName":"Jharkhand","teamSName":"JHKD","imageId":172296}
+"team2":{"teamId":254,"teamName":"Maharashtra","teamSName":"MAH","imageId":172307}
+"team1":{"teamId":81,"teamName":"Delhi","teamSName":"DEL","imageId":172175}
+"team2":{"teamId":163,"teamName":"Gujarat","teamSName":"GUJ","imageId":172232}
+"team1":{"teamId":232,"teamName":"Bengal","teamSName":"BEN","imageId":172285}
+"team2":{"teamId":250,"teamName":"Services","teamSName":"SER","imageId":172303}
+"team1":{"teamId":244,"teamName":"Kerala","teamSName":"KER","imageId":172297}
+"team2":{"teamId":249,"teamName":"Odisha","teamSName":"ODSA","imageId":776395}
+"team1":{"teamId":595,"teamName":"Chandigarh","teamSName":"CDG","imageId":244269}
+"team2":{"teamId":200,"teamName":"Haryana","teamSName":"HAR","imageId":172260}
+"team1":{"teamId":251,"teamName":"Himachal Pradesh","teamSName":"HP","imageId":172304}
+"team2":{"teamId":95,"teamName":"Mumbai","teamSName":"MUM","imageId":172187}
+"team1":{"teamId":467,"teamName":"Uttarakhand","teamSName":"UTK","imageId":172515}
+"team2":{"teamId":92,"teamName":"Tamil Nadu","teamSName":"TN","imageId":172184}
+"team1":{"teamId":171,"teamName":"Rajasthan","teamSName":"RAJ","imageId":172239}
+"team2":{"teamId":246,"teamName":"Railways","teamSName":"RLYS","imageId":172299}
+"team1":{"teamId":462,"teamName":"Meghalaya","teamSName":"MGLY","imageId":172510}
+"team2":{"teamId":461,"teamName":"Manipur","teamSName":"MNP","imageId":172509}
+"team1":{"teamId":463,"teamName":"Mizoram","teamSName":"MIZ","imageId":776489}
+"team2":{"teamId":464,"teamName":"Nagaland","teamSName":"NGL","imageId":776394}
+"team1":{"teamId":468,"teamName":"Arunachal Pradesh","teamSName":"ARNP","imageId":172516}
+"team2":{"teamId":466,"teamName":"Sikkim","teamSName":"SKM","imageId":172514}
+"team1":{"teamId":166,"teamName":"Tasmania","teamSName":"TAS","imageId":172235}
+"team2":{"teamId":52,"teamName":"Victoria","teamSName":"VIC","imageId":172153}
+"team1":{"teamId":158,"teamName":"South Australia","teamSName":"SAUS","imageId":172225}
+"team2":{"teamId":164,"teamName":"Queensland","teamSName":"QL","imageId":172233}
+"team1":{"teamId":104,"teamName":"New South Wales","teamSName":"NSW","imageId":172196}
+"team2":{"teamId":87,"teamName":"Western Australia","teamSName":"WA","imageId":172180}
+"team1":{"teamId":100,"teamName":"Australia Women","teamSName":"AUSW","imageId":776205}
+"team2":{"teamId":98,"teamName":"New Zealand Women","teamSName":"NZW","imageId":776338}
+"team1":{"teamId":97,"teamName":"India Women","teamSName":"INDW","imageId":776182}
+"team2":{"teamId":388,"teamName":"Zimbabwe Women","teamSName":"ZIMW","imageId":776203}
+"team1":{"teamId":355,"teamName":"Adelaide Strikers Women","teamSName":"ADSW","imageId":824978}
+"team2":{"teamId":360,"teamName":"Perth Scorchers Women","teamSName":"PRSW","imageId":824984}
+"team1":{"teamId":362,"teamName":"Sydney Thunder Women","teamSName":"SYTW","imageId":824992}
+"team2":{"teamId":361,"teamName":"Sydney Sixers Women","teamSName":"SYSW","imageId":824990}
+"team1":{"teamId":96,"teamName":"Afghanistan","teamSName":"AFG","imageId":776177}
+"team2":{"teamId":12,"teamName":"Zimbabwe","teamSName":"ZIM","imageId":776198}
+"team1":{"teamId":11,"teamName":"South Africa","teamSName":"RSA","imageId":776287}
+"team2":{"teamId":4,"teamName":"Australia","teamSName":"AUS","imageId":776202}
+"team1":{"teamId":128,"teamName":"Karnataka","teamSName":"KAR","imageId":776345}
+"team2":{"teamId":94,"teamName":"Saurashtra","teamSName":"SAUR","imageId":172186}
+"team1":{"teamId":3,"teamName":"Pakistan","teamSName":"PAK","imageId":776308}
+"team2":{"teamId":9,"teamName":"England","teamSName":"ENG","imageId":776237}
+"team1":{"teamId":97,"teamName":"India Women","teamSName":"INDW","imageId":776182}
+"team2":{"teamId":388,"teamName":"Zimbabwe Women","teamSName":"ZIMW","imageId":776203}
+"team1":{"teamId":72,"teamName":"Nepal","teamSName":"NEP","imageId":776331}
+"team2":{"teamId":304,"teamName":"Oman","teamSName":"OMAN","imageId":776328}
+"team1":{"teamId":11,"teamName":"South Africa","teamSName":"RSA","imageId":776287}
+"team2":{"teamId":4,"teamName":"Australia","teamSName":"AUS","imageId":776202}
+"team1":{"teamId":3,"teamName":"Pakistan","teamSName":"PAK","imageId":776308}
+"team2":{"teamId":9,"teamName":"England","teamSName":"ENG","imageId":776237}
+"team1":{"teamId":44,"teamName":"Uganda","teamSName":"UGA","imageId":776233}
+"team2":{"teamId":2001,"teamName":"Zambia","teamSName":"ZMB","imageId":506188}
+"team1":{"teamId":570,"teamName":"Lesotho","teamSName":"LSO","imageId":172622}
+"team2":{"teamId":551,"teamName":"Mozambique","teamSName":"MOZ","imageId":172603}
+"team1":{"teamId":536,"teamName":"Nigeria","teamSName":"NGA","imageId":248436}
+"team2":{"teamId":567,"teamName":"Gambia","teamSName":"GM","imageId":172619}
+"team1":{"teamId":72,"teamName":"Nepal","teamSName":"NEP","imageId":776331}
+"team2":{"teamId":304,"teamName":"Oman","teamSName":"OMAN","imageId":776328}
+"team1":{"teamId":96,"teamName":"Afghanistan","teamSName":"AFG","imageId":776177}
+"team2":{"teamId":12,"teamName":"Zimbabwe","teamSName":"ZIM","imageId":776198}
+"team1":{"teamId":90,"teamName":"Dolphins","teamSName":"DOL","imageId":172183}
+"team2":{"teamId":155,"teamName":"Warriors","teamSName":"WAR","imageId":172222}
+"team1":{"teamId":162,"teamName":"Assam","teamSName":"ASM","imageId":172230}
+"team2":{"teamId":247,"teamName":"Tripura","teamSName":"TRI","imageId":172300}
+"team1":{"teamId":460,"teamName":"Bihar","teamSName":"BIH","imageId":172508}
+"team2":{"teamId":170,"teamName":"Baroda","teamSName":"BRD","imageId":172238}
+"team1":{"teamId":465,"teamName":"Puducherry","teamSName":"PDC","imageId":172513}
+"team2":{"teamId":167,"teamName":"Madhya Pradesh","teamSName":"MP","imageId":172236}
+"team1":{"teamId":252,"teamName":"Jammu and Kashmir","teamSName":"JK","imageId":172305}
+"team2":{"teamId":248,"teamName":"Vidarbha","teamSName":"VID","imageId":172301}
+"team1":{"teamId":93,"teamName":"Uttar Pradesh","teamSName":"UP","imageId":172185}
+"team2":{"teamId":253,"teamName":"Goa","teamSName":"GOA","imageId":172306}
+"team1":{"teamId":242,"teamName":"Hyderabad","teamSName":"HYD","imageId":172295}
+"team2":{"teamId":241,"teamName":"Andhra","teamSName":"AP","imageId":172294}
+"team1":{"teamId":128,"teamName":"Karnataka","teamSName":"KAR","imageId":776345}
+"team2":{"teamId":94,"teamName":"Saurashtra","teamSName":"SAUR","imageId":172186}
+"team1":{"teamId":245,"teamName":"Punjab","teamSName":"PUN","imageId":172298}
+"team2":{"teamId":375,"teamName":"Chhattisgarh","teamSName":"CG","imageId":172428}
+"team1":{"teamId":243,"teamName":"Jharkhand","teamSName":"JHKD","imageId":172296}
+"team2":{"teamId":254,"teamName":"Maharashtra","teamSName":"MAH","imageId":172307}
+"team1":{"teamId":81,"teamName":"Delhi","teamSName":"DEL","imageId":172175}
+"team2":{"teamId":163,"teamName":"Gujarat","teamSName":"GUJ","imageId":172232}
+"team1":{"teamId":232,"teamName":"Bengal","teamSName":"BEN","imageId":172285}
+"team2":{"teamId":250,"teamName":"Services","teamSName":"SER","imageId":172303}
+"team1":{"teamId":244,"teamName":"Kerala","teamSName":"KER","imageId":172297}
+"team2":{"teamId":249,"teamName":"Odisha","teamSName":"ODSA","imageId":776395}
+"team1":{"teamId":595,"teamName":"Chandigarh","teamSName":"CDG","imageId":244269}
+"team2":{"teamId":200,"teamName":"Haryana","teamSName":"HAR","imageId":172260}
+"team1":{"teamId":251,"teamName":"Himachal Pradesh","teamSName":"HP","imageId":172304}
+"team2":{"teamId":95,"teamName":"Mumbai","teamSName":"MUM","imageId":172187}
+"team1":{"teamId":467,"teamName":"Uttarakhand","teamSName":"UTK","imageId":172515}
+"team2":{"teamId":92,"teamName":"Tamil Nadu","teamSName":"TN","imageId":172184}
+"team1":{"teamId":171,"teamName":"Rajasthan","teamSName":"RAJ","imageId":172239}
+"team2":{"teamId":246,"teamName":"Railways","teamSName":"RLYS","imageId":172299}
+"team1":{"teamId":462,"teamName":"Meghalaya","teamSName":"MGLY","imageId":172510}
+"team2":{"teamId":461,"teamName":"Manipur","teamSName":"MNP","imageId":172509}
+"team1":{"teamId":463,"teamName":"Mizoram","teamSName":"MIZ","imageId":776489}
+"team2":{"teamId":464,"teamName":"Nagaland","teamSName":"NGL","imageId":776394}
+"team1":{"teamId":468,"teamName":"Arunachal Pradesh","teamSName":"ARNP","imageId":172516}
+"team2":{"teamId":466,"teamName":"Sikkim","teamSName":"SKM","imageId":172514}
+"team1":{"teamId":166,"teamName":"Tasmania","teamSName":"TAS","imageId":172235}
+"team2":{"teamId":52,"teamName":"Victoria","teamSName":"VIC","imageId":172153}
+"team1":{"teamId":158,"teamName":"South Australia","teamSName":"SAUS","imageId":172225}
+"team2":{"teamId":164,"teamName":"Queensland","teamSName":"QL","imageId":172233}
+"team1":{"teamId":104,"teamName":"New South Wales","teamSName":"NSW","imageId":172196}
+"team2":{"teamId":87,"teamName":"Western Australia","teamSName":"WA","imageId":172180}
+"team1":{"teamId":100,"teamName":"Australia Women","teamSName":"AUSW","imageId":776205}
+"team2":{"teamId":98,"teamName":"New Zealand Women","teamSName":"NZW","imageId":776338}
+"team1":{"teamId":97,"teamName":"India Women","teamSName":"INDW","imageId":776182}
+"team2":{"teamId":388,"teamName":"Zimbabwe Women","teamSName":"ZIMW","imageId":776203}
+"team1":{"teamId":355,"teamName":"Adelaide Strikers Women","teamSName":"ADSW","imageId":824978}
+"team2":{"teamId":360,"teamName":"Perth Scorchers Women","teamSName":"PRSW","imageId":824984}
+"team1":{"teamId":362,"teamName":"Sydney Thunder Women","teamSName":"SYTW","imageId":824992}
+"team2":{"teamId":361,"teamName":"Sydney Sixers Women","teamSName":"SYSW","imageId":824990}
+"team1":{"team":{"teamId":304,"teamName":"Oman","teamSName":"OMAN","imageDetails":{"imageId":"776328","alt":"oman","src":"imagesrc","w":25,"h":18,"aspect":"16:9","imageType":"smallFlag","priority":true},"profileUrl":"/cricket-team/oman/304"},"players":{"playing XI":[{"id":10453,"name":"Jatinder Singh","fullName":"Jatinder Singh","nickName":"Jatinder Singh","captain":false,"role":"Batter","keeper":false,"substitute":false,"teamId":304,"teamName":"OMAN","battingStyle":"RIGHT","bowlingStyle":"Right Arm off break","imageDetails":{"imageId":845192,"alt":"jatinder-singh","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/10453/jatinder-singh","playingXIChange":"","isOverseas":false,"inMatchChange":""},{"id":1463113,"name":"Hasnain Ul Wahab","fullName":"Hasnain Ul Wahab","nickName":"Hasnain Ul Wahab","captain":false,"role":"Batter","keeper":false,"substitute":false,"teamId":304,"teamName":"OMAN","battingStyle":"RIGHT","bowlingStyle":"$undefined","imageDetails":{"imageId":182026,"alt":"hasnain-ul-wahab","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/1463113/hasnain-ul-wahab","playingXIChange":"","isOverseas":false,"inMatchChange":""},{"id":1431481,"name":"Hammad Mirza","fullName":"Hammad Mirza","nickName":"Hammad Mirza","captain":false,"role":"WK-Batter","keeper":false,"substitute":false,"teamId":304,"teamName":"OMAN","battingStyle":"RIGHT","bowlingStyle":"$undefined","imageDetails":{"imageId":845245,"alt":"hammad-mirza","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/1431481/hammad-mirza","playingXIChange":"","isOverseas":false,"inMatchChange":""},{"id":1451065,"name":"Mujibur Ali","fullName":"Mujibur Ali","nickName":"Mujibur Ali","captain":false,"role":"Bowling Allrounder","keeper":false,"substitute":false,"teamId":304,"teamName":"OMAN","battingStyle":"LEFT","bowlingStyle":"$undefined","imageDetails":{"imageId":182026,"alt":"mujibur-ali","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/1451065/mujibur-ali","playingXIChange":"","isOverseas":false,"inMatchChange":""},{"id":1449033,"name":"Vinayak Shukla","fullName":"Vinayak Shukla","nickName":"Vinayak Shukla","captain":true,"role":"WK-Batter","keeper":true,"substitute":false,"teamId":304,"teamName":"OMAN","battingStyle":"RIGHT","bowlingStyle":"$undefined","imageDetails":{"imageId":845246,"alt":"vinayak-shukla","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/1449033/vinayak-shukla","playingXIChange":"","isOverseas":false,"inMatchChange":""},{"id":1479660,"name":"Sanju Sajeev","fullName":"Sanju Sajeev","nickName":"Sanju Sajeev","captain":false,"role":"Batting Allrounder","keeper":false,"substitute":false,"teamId":304,"teamName":"OMAN","battingStyle":"RIGHT","bowlingStyle":"Right Arm off break","imageDetails":{"imageId":182026,"alt":"sanju-sajeev","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/1479660/sanju-sajeev","playingXIChange":"IN","isOverseas":false,"inMatchChange":""},{"id":14576,"name":"Jay Odedra","fullName":"Jay Odedra","nickName":"Jay Odedra","captain":false,"role":"Bowling Allrounder","keeper":false,"substitute":false,"teamId":304,"teamName":"OMAN","battingStyle":"RIGHT","bowlingStyle":"Right Arm off break","imageDetails":{"imageId":845230,"alt":"jay-odedra","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/14576/jay-odedra","playingXIChange":"","isOverseas":false,"inMatchChange":""},{"id":1462749,"name":"Shah Faisal","fullName":"Shah Faisal","nickName":"Shah Faisal","captain":false,"role":"Bowler","keeper":false,"substitute":false,"teamId":304,"teamName":"OMAN","battingStyle":"LEFT","bowlingStyle":"Left Arm fast medium","imageDetails":{"imageId":845247,"alt":"shah-faisal","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/1462749/shah-faisal","playingXIChange":"IN","isOverseas":false,"inMatchChange":""},{"id":1450984,"name":"Hassnain Shah","fullName":"Hassnain Shah","nickName":"Hassnain Shah","captain":false,"role":"Batting Allrounder","keeper":false,"substitute":false,"teamId":304,"teamName":"OMAN","battingStyle":"RIGHT","bowlingStyle":"Right Arm medium","imageDetails":{"imageId":182026,"alt":"hassnain-shah","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/1450984/hassnain-shah","playingXIChange":"","isOverseas":false,"inMatchChange":""},{"id":50383,"name":"Shakeel Ahmed","fullName":"Shakeel Ahmed","nickName":"Shakeel Ahmed","captain":false,"role":"Bowler","keeper":false,"substitute":false,"teamId":304,"teamName":"OMAN","battingStyle":"LEFT","bowlingStyle":"Left arm orthodox","imageDetails":{"imageId":845249,"alt":"shakeel-ahmed","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/50383/shakeel-ahmed","playingXIChange":"","isOverseas":false,"inMatchChange":""},{"id":34513,"name":"Samay Shrivastava","fullName":"Samay Shrivastava","nickName":"Samay Shrivastava","captain":false,"role":"Bowler","keeper":false,"substitute":false,"teamId":304,"teamName":"OMAN","battingStyle":"RIGHT","bowlingStyle":"Right Arm leg break","imageDetails":{"imageId":182026,"alt":"samay-shrivastava","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/34513/samay-shrivastava","playingXIChange":"IN","isOverseas":false,"inMatchChange":""}],"bench":[{"id":1428535,"name":"Karan Sonavale","fullName":"Karan Sonavale","nickName":"Karan Sonavale","captain":false,"role":"Batting Allrounder","keeper":false,"substitute":true,"teamId":304,"teamName":"OMAN","battingStyle":"RIGHT","bowlingStyle":"Right Arm off break","imageDetails":{"imageId":845202,"alt":"karan-sonavale","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/1428535/karan-sonavale","playingXIChange":"OUT","isOverseas":false,"inMatchChange":""},{"id":1462730,"name":"Zikria Islam","fullName":"Zikria Islam","nickName":"Zikria Islam","captain":false,"role":"Batter","keeper":false,"substitute":true,"teamId":304,"teamName":"OMAN","battingStyle":"RIGHT","bowlingStyle":"Right Arm medium","imageDetails":{"imageId":182026,"alt":"zikria-islam","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/1462730/zikria-islam","playingXIChange":"OUT","isOverseas":false,"inMatchChange":""},{"id":1462738,"name":"Nadeem Khan","fullName":"Nadeem Khan","nickName":"Nadeem Khan","captain":false,"role":"Bowler","keeper":false,"substitute":true,"teamId":304,"teamName":"OMAN","battingStyle":"LEFT","bowlingStyle":"Left arm orthodox","imageDetails":{"imageId":845248,"alt":"nadeem-khan","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/1462738/nadeem-khan","playingXIChange":"OUT","isOverseas":false,"inMatchChange":""},{"id":1480673,"name":"Abdul Khaliq","fullName":"Abdul Khaliq","nickName":"Abdul Khaliq","captain":false,"role":"$undefined","keeper":false,"substitute":true,"teamId":304,"teamName":"OMAN","battingStyle":"LEFT","bowlingStyle":"$undefined","imageDetails":{"imageId":182026,"alt":"abdul-khaliq","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/1480673/abdul-khaliq","playingXIChange":"","isOverseas":false,"inMatchChange":""}],"support staff":[{"id":3499,"name":"Duleep Mendis","fullName":"Duleep Mendis","nickName":"Mendis","captain":"$undefined","role":"Head Coach","keeper":"$undefined","substitute":"$undefined","teamId":304,"teamName":"OMAN","battingStyle":"$undefined","bowlingStyle":"$undefined","imageDetails":{"imageId":160081,"alt":"duleep-mendis","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/3499/duleep-mendis","playingXIChange":"","isOverseas":false,"inMatchChange":""},{"id":1468927,"name":"Mazher Khan","fullName":"Mazher Khan","nickName":"Mazher Khan","captain":"$undefined","role":"Assistant Coach","keeper":"$undefined","substitute":"$undefined","teamId":304,"teamName":"OMAN","battingStyle":"$undefined","bowlingStyle":"$undefined","imageDetails":{"imageId":182026,"alt":"mazher-khan","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/1468927/mazher-khan","playingXIChange":"","isOverseas":false,"inMatchChange":""}]}}
+"team2":{"team":{"teamId":72,"teamName":"Nepal","teamSName":"NEP","imageDetails":{"imageId":"776331","alt":"nepal","src":"imagesrc","w":25,"h":18,"aspect":"16:9","imageType":"smallFlag","priority":true},"profileUrl":"/cricket-team/nepal/72"},"players":{"playing XI":[{"id":22691,"name":"Dev Khanal","fullName":"Dev Khanal","nickName":"Dev Khanal","captain":false,"role":"Batter","keeper":false,"substitute":false,"teamId":72,"teamName":"NEP","battingStyle":"RIGHT","bowlingStyle":"Right Arm off break","imageDetails":{"imageId":182026,"alt":"dev-khanal","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/22691/dev-khanal","playingXIChange":"IN","isOverseas":false,"inMatchChange":""},{"id":14216,"name":"Asif Sheikh","fullName":"Asif Sheikh","nickName":"Asif Sheikh","captain":false,"role":"WK-Batter","keeper":true,"substitute":false,"teamId":72,"teamName":"NEP","battingStyle":"RIGHT","bowlingStyle":"$undefined","imageDetails":{"imageId":182026,"alt":"asif-sheikh","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/14216/asif-sheikh","playingXIChange":"","isOverseas":false,"inMatchChange":""},{"id":11165,"name":"Ishan Pandey","fullName":"Ishan Pandey","nickName":"Ishan Pandey","captain":false,"role":"Batter","keeper":false,"substitute":false,"teamId":72,"teamName":"NEP","battingStyle":"LEFT","bowlingStyle":"$undefined","imageDetails":{"imageId":182026,"alt":"ishan-pandey","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/11165/ishan-pandey","playingXIChange":"","isOverseas":false,"inMatchChange":""},{"id":12140,"name":"Rohit Paudel","fullName":"Rohit Paudel","nickName":"Rohit Paudel","captain":false,"role":"Batting Allrounder","keeper":false,"substitute":false,"teamId":72,"teamName":"NEP","battingStyle":"RIGHT","bowlingStyle":"Right Arm off break","imageDetails":{"imageId":847047,"alt":"rohit-paudel","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/12140/rohit-paudel","playingXIChange":"","isOverseas":false,"inMatchChange":""},{"id":23066,"name":"Basir Ahamad","fullName":"Basir Ahamad","nickName":"Basir Ahamad","captain":false,"role":"Bowler","keeper":false,"substitute":false,"teamId":72,"teamName":"NEP","battingStyle":"LEFT","bowlingStyle":"Left arm orthodox","imageDetails":{"imageId":847063,"alt":"basir-ahamad","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/23066/basir-ahamad","playingXIChange":"","isOverseas":false,"inMatchChange":""},{"id":11155,"name":"Dipendra Singh Airee","fullName":"Dipendra Singh Airee","nickName":"Dipendra Singh Airee","captain":false,"role":"Batting Allrounder","keeper":false,"substitute":false,"teamId":72,"teamName":"NEP","battingStyle":"RIGHT","bowlingStyle":"Right Arm off break","imageDetails":{"imageId":848428,"alt":"dipendra-singh-airee","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/11155/dipendra-singh-airee","playingXIChange":"","isOverseas":false,"inMatchChange":""},{"id":20146,"name":"Gulsan Jha","fullName":"Gulsan Jha","nickName":"Gulsan Jha","captain":false,"role":"Bowling Allrounder","keeper":false,"substitute":false,"teamId":72,"teamName":"NEP","battingStyle":"LEFT","bowlingStyle":"Right Arm medium","imageDetails":{"imageId":847062,"alt":"gulsan-jha","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/20146/gulsan-jha","playingXIChange":"","isOverseas":false,"inMatchChange":""},{"id":10203,"name":"Karan KC","fullName":"Karan KC","nickName":"Karan KC","captain":false,"role":"Bowling Allrounder","keeper":false,"substitute":false,"teamId":72,"teamName":"NEP","battingStyle":"RIGHT","bowlingStyle":"Right Arm medium","imageDetails":{"imageId":847053,"alt":"karan-kc","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/10203/karan-kc","playingXIChange":"","isOverseas":false,"inMatchChange":""},{"id":12113,"name":"Nandan Yadav","fullName":"Nandan Yadav","nickName":"Nandan Yadav","captain":false,"role":"Bowling Allrounder","keeper":false,"substitute":false,"teamId":72,"teamName":"NEP","battingStyle":"RIGHT","bowlingStyle":"Right Arm medium","imageDetails":{"imageId":847061,"alt":"nandan-yadav","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/12113/nandan-yadav","playingXIChange":"","isOverseas":false,"inMatchChange":""},{"id":11158,"name":"Sandeep Lamichhane","fullName":"Sandeep Lamichhane","nickName":"Sandeep Lamichhane","captain":true,"role":"Bowler","keeper":false,"substitute":false,"teamId":72,"teamName":"NEP","battingStyle":"RIGHT","bowlingStyle":"Right Arm leg break","imageDetails":{"imageId":847075,"alt":"sandeep-lamichhane","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/11158/sandeep-lamichhane","playingXIChange":"","isOverseas":false,"inMatchChange":""},{"id":13626,"name":"Lalit Rajbanshi","fullName":"Lalit Rajbanshi","nickName":"Lalit Rajbanshi","captain":false,"role":"Bowler","keeper":false,"substitute":false,"teamId":72,"teamName":"NEP","battingStyle":"RIGHT","bowlingStyle":"Left arm orthodox","imageDetails":{"imageId":847068,"alt":"lalit-rajbanshi","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/13626/lalit-rajbanshi","playingXIChange":"","isOverseas":false,"inMatchChange":""}],"bench":[{"id":22706,"name":"Arjun Kumal","fullName":"Arjun Kumal","nickName":"Arjun Kumal","captain":false,"role":"Batter","keeper":false,"substitute":true,"teamId":72,"teamName":"NEP","battingStyle":"RIGHT","bowlingStyle":"$undefined","imageDetails":{"imageId":182026,"alt":"arjun-kumal","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/22706/arjun-kumal","playingXIChange":"OUT","isOverseas":false,"inMatchChange":""},{"id":13222,"name":"Shahab Alam","fullName":"Shahab Alam","nickName":"Shahab Alam","captain":false,"role":"Bowler","keeper":false,"substitute":true,"teamId":72,"teamName":"NEP","battingStyle":"LEFT","bowlingStyle":"Left arm orthodox","imageDetails":{"imageId":182026,"alt":"shahab-alam","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/13222/shahab-alam","playingXIChange":"","isOverseas":false,"inMatchChange":""},{"id":14220,"name":"Sundeep Jora","fullName":"Sundeep Jora","nickName":"Sundeep Jora","captain":false,"role":"Batter","keeper":false,"substitute":true,"teamId":72,"teamName":"NEP","battingStyle":"RIGHT","bowlingStyle":"$undefined","imageDetails":{"imageId":847056,"alt":"sundeep-jora","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/14220/sundeep-jora","playingXIChange":"","isOverseas":false,"inMatchChange":""},{"id":22716,"name":"Sher Malla","fullName":"Sher Malla","nickName":"Sher Malla","captain":false,"role":"Bowler","keeper":false,"substitute":true,"teamId":72,"teamName":"NEP","battingStyle":"LEFT","bowlingStyle":"Right Arm off break","imageDetails":{"imageId":847055,"alt":"sher-malla","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/22716/sher-malla","playingXIChange":"","isOverseas":false,"inMatchChange":""}],"support staff":[{"id":4743,"name":"Stuart Law","fullName":"Stuart Law","nickName":"Law","captain":"$undefined","role":"Head Coach","keeper":"$undefined","substitute":"$undefined","teamId":72,"teamName":"NEP","battingStyle":"$undefined","bowlingStyle":"$undefined","imageDetails":{"imageId":155696,"alt":"stuart-law","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/4743/stuart-law","playingXIChange":"","isOverseas":false,"inMatchChange":""},{"id":9966,"name":"Gyanendra Malla","fullName":"Gyanendra Malla","nickName":"Malla","captain":"$undefined","role":"Assistant Coach","keeper":"$undefined","substitute":"$undefined","teamId":72,"teamName":"NEP","battingStyle":"$undefined","bowlingStyle":"$undefined","imageDetails":{"imageId":155380,"alt":"gyanendra-malla","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/9966/gyanendra-malla","playingXIChange":"","isOverseas":false,"inMatchChange":""},{"id":4757,"name":"Ian Harvey","fullName":"Ian Harvey","nickName":"Harvey","captain":"$undefined","role":"Bowling Coach","keeper":"$undefined","substitute":"$undefined","teamId":72,"teamName":"NEP","battingStyle":"$undefined","bowlingStyle":"$undefined","imageDetails":{"imageId":151565,"alt":"ian-harvey","src":"imagesrc","w":48,"h":48,"aspect":"16:9","imageType":"gthumb","priority":true},"profileUrl":"/profiles/4757/ian-harvey","playingXIChange":"","isOverseas":false,"inMatchChange":""}]}}
