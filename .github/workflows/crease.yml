@@ -1,0 +1,45 @@
+name: Crease
+
+# The Crease experiment (experiments/cricket-live): parser tests over recorded
+# payloads, alert detection, and the offline browser suite that audits every view
+# for overlaps, overflow, clipping, contrast and tap targets.
+
+on:
+  pull_request:
+    paths:
+      - "experiments/cricket-live/**"
+      - ".github/workflows/crease.yml"
+  push:
+    branches: [main]
+    paths:
+      - "experiments/cricket-live/**"
+      - ".github/workflows/crease.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  HUSKY: "0"
+
+jobs:
+  test:
+    name: Crease tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+      - name: Cache npm package downloads
+        uses: ./.github/actions/npm-cache
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run Crease tests, including the browser suite
+        run: node --test "experiments/cricket-live/test/*.test.mjs"
+        env:
+          CREASE_BROWSER: /usr/bin/google-chrome
+          CREASE_BROWSER_NO_SANDBOX: "true"
