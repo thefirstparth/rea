@@ -63,12 +63,18 @@ event is found from the same fixture.
 | `GET /api/series/:id/table`                | `/cricket-series/:id/x/points-table` page, `pointsTableData` for that series id                                                                                                                               | 5m                                    |
 | `GET /api/tournament`                      | the ICC event (World Cup, T20 World Cup, Champions Trophy) found by name in India's schedule and results, with every match from its series page                                                               | 10m                                   |
 | `GET /api/team/:id`                        | `/cricket-team/x/:id/schedule` and `/results` pages, for any team (a country or an IPL side)                                                                                                                  | 30m                                   |
-| `GET /api/match/:id/squads`                | `/cricket-match-squads/:id/x` page, `team1`/`team2` in the RSC payload                                                                                                                                        | 60s                                   |
+| `GET /api/match/:id/squads`                | `/cricket-match-squads/:id/x` page, `team1`/`team2` in the RSC payload; for XI changes, the same page for each side's previous match in the series                                                            | 60s (previous match 30m)              |
 
 | App route                                       | Cricinfo source (ESPN API)                                      | Cache |
 | ----------------------------------------------- | --------------------------------------------------------------- | ----- |
 | `GET /api/match/:id/cricinfo`                   | `/{league}/summary?event=` (officials, notes, debuts, venue)    | 60s   |
 | `GET /api/match/:id/cricinfo/commentary[?page]` | `/{league}/playbyplay?event=&page=` (balls plus live-blog text) | 15s   |
+
+Squads mark each XI change since the side's last match. Cricbuzz marks players
+in and out, but only those still in the squad, so the adapter also compares the
+XI with the side's previous match in the same series. A player who left the
+squad still shows as out. If the previous match can't be read, Cricbuzz's own
+marks stand alone.
 
 Event lookup uses `/scorepanel` (cached 30s). Cricinfo routes return
 `{ "available": false }` when no Cricinfo event matches the fixture.

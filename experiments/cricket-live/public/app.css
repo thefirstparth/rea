@@ -2379,6 +2379,37 @@ details.ci.note[open] .more-note {
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   color: var(--accent);
 }
+.badge.in {
+  background: color-mix(in srgb, var(--win) 9%, transparent);
+  color: var(--win);
+}
+.badge.out {
+  background: color-mix(in srgb, var(--live) 10%, transparent);
+  color: var(--bad-ink);
+}
+.xi-chg {
+  margin: 0;
+  padding: 12px 14px;
+  font-size: var(--t-cap);
+  line-height: 1.6;
+  color: var(--ink2);
+  border-bottom: 0.5px solid var(--line2);
+}
+.xi-chg b {
+  display: block;
+  color: var(--muted);
+  font-weight: 700;
+}
+.xi-chg > span {
+  display: block;
+}
+.xi-chg .badge {
+  min-width: 30px;
+  margin: 0 6px 0 0;
+}
+.xi-chg + .grp-h {
+  border-top: 0;
+}
 .grp-h {
   padding: 12px 14px 6px;
   font-size: var(--t-cap);
