@@ -237,6 +237,8 @@ function summary(entry, type = "") {
     format: i.matchFormat ?? "",
     type: i.matchType || type,
     start: Number(i.startDate) || null,
+    // Cricbuzz's scheduled close of play on the last day, not when the result came.
+    end: Number(i.endDate) || null,
     ...settled(i.state, i.status),
     venue: venueOf(i.venueInfo),
     batting: notDeclared(i.currBatTeamId, [

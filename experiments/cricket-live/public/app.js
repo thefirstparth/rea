@@ -1303,7 +1303,7 @@ function headingOf(tab) {
   if (tab !== "now") return TITLES[tab];
   if (!S.list) return "";
   const on = liveIn("now");
-  if (!on.length) return "Up next";
+  if (!on.length) return idleHome().result ? "Latest result" : "Up next";
   return on.some((m) => !paused(m)) ? TITLES.now : "Now";
 }
 
@@ -1344,9 +1344,8 @@ const liveSection = (live) =>
 function homeView() {
   const live = liveIn("now");
   if (S.list && !live.length) {
-    const next = [upcoming("india")[0], upcoming("ipl")[0]]
-      .filter(Boolean)
-      .sort(byStartAsc)[0];
+    const { next, result } = idleHome();
+    if (result) return lastResult(result, next);
     if (next) return upNext(next);
   }
   let html = pageHead("now", live);
@@ -1372,6 +1371,45 @@ function homeView() {
   const focus = live[0] ?? next;
   if (focus) html += currentSeries(focus);
   return html + foot();
+}
+
+const HOUR = 3600e3;
+// How long a match runs from its start, for one without Cricbuzz's end time.
+const RUNS = { T20: 4 * HOUR, ODI: 8 * HOUR, TEST: 5 * 24 * HOUR };
+const endOf = (m) =>
+  m.end ??
+  (m.start ? m.start + (RUNS[(m.format ?? "").toUpperCase()] ?? 8 * HOUR) : 0);
+
+// With nothing live, home leads with India's or the IPL's last result for two days after
+// it, until the next match is a day away; then the next match's poster takes over.
+const KEEP_RESULT = 48 * HOUR;
+const NEXT_SOON = 24 * HOUR;
+function idleHome() {
+  const next = [upcoming("india")[0], upcoming("ipl")[0]]
+    .filter(Boolean)
+    .sort(byStartAsc)[0];
+  const now = Date.now();
+  if (next?.start && next.start - now <= NEXT_SOON) return { next };
+  const last = knownMatches()
+    .filter(
+      (m) =>
+        m.phase === "done" &&
+        (m.tags.includes("india") || m.tags.includes("ipl")),
+    )
+    .sort((a, b) => endOf(b) - endOf(a))[0];
+  // Counted from the scheduled close, so a Test won early stays up a little longer.
+  const result = last && now - endOf(last) < KEEP_RESULT ? last : null;
+  return { next, result };
+}
+
+// India's or the IPL's last result, then the next match and the rest of home.
+function lastResult(m, next) {
+  const others = elsewhere();
+  return `<div class="ph sm" data-k="ph"><h1 tabindex="-1">${headingOf("now")}</h1></div>
+    ${hero(m)}
+    <p class="idle" data-k="idle">Nothing live for India or IPL${others ? ` · ${others}` : ""}</p>
+    ${next ? `<h2 class="sec" data-k="nh"><span>Next match</span></h2>${nextCard(next)}` : ""}
+    ${favCard([next].filter(Boolean))}${currentSeries(m, next)}${foot()}`;
 }
 
 // Nothing on: the next India or IPL match as a matchday poster, then the rest of home.
@@ -2030,13 +2068,18 @@ function seriesOf(focus) {
   return [...byId.values()].sort(byStartAsc);
 }
 
-// Home's second card: where the live or next match sits in its series.
-function currentSeries(focus) {
+// Home's second card: where the live or next match sits in its series. `shown` is a
+// match already on the page, left out of the list after it.
+function currentSeries(focus, shown = null) {
   const all = seriesOf(focus);
   if (all.length < 2) return "";
   const played = all.filter((m) => m.phase === "done");
   const ahead = all
-    .filter((m) => m.phase !== "done" && String(m.id) !== String(focus.id))
+    .filter(
+      (m) =>
+        m.phase !== "done" &&
+        ![focus.id, shown?.id].some((id) => String(id) === String(m.id)),
+    )
     .slice(0, 3);
   const latest = played.at(-1);
   const record = standings(all);
