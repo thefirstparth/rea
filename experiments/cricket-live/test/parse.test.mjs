@@ -426,15 +426,25 @@ test("the series archive lists finished seasons with their dates", () => {
   assert.throws(() => cb.archiveSeries('"other":[]'), /no series list/);
 });
 
-test("commentary sanitiser keeps b/i/br, unwraps links, escapes the rest", () => {
+test("commentary sanitiser keeps b/i/s/br, drops other tags, escapes the rest", () => {
   assert.equal(
     cleanHtml('<b>Four!</b> <a href="x">MATCH UP</a>'),
     "<b>Four!</b> MATCH UP",
   );
+  // Other tags are dropped, never shown or run; their text stays.
+  assert.equal(cleanHtml("<script>x</script>"), "x");
   assert.equal(
-    cleanHtml("<script>x</script>"),
-    "&lt;script&gt;x&lt;/script&gt;",
+    cleanHtml('<span class="x" onclick="y">a</span><img src=x onerror=y>'),
+    "a",
   );
+  // Cricinfo's struck-out asides (24 Oct 2026, NZ v IND 2nd T20I).
+  assert.equal(
+    cleanHtml("Abhishek <strike>has to go</strike> survives"),
+    "Abhishek <s>has to go</s> survives",
+  );
+  assert.equal(cleanHtml("<del>out</del> <s>open"), "<s>out</s> <s>open</s>");
+  // A "<" that isn't a tag is text.
+  assert.equal(cleanHtml("97 < 100 <3"), "97 &lt; 100 &lt;3");
   assert.equal(cleanHtml("R &amp; D & co, 97/5"), "R &amp; D &amp; co, 97/5");
   assert.equal(cleanHtml("</b>stray <i>open"), "stray <i>open</i>");
   assert.equal(cleanHtml("<strong>a</strong><br/>b"), "<b>a</b><br>b");
