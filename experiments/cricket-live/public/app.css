@@ -2188,9 +2188,13 @@ details.ci.note[open] .more-note {
   gap: 6px;
   min-width: 0;
 }
+/* A grid row, so the number and date share a baseline and the row sits in the
+   middle of the chip whatever its font size. */
 .rc {
-  display: inline-flex;
+  display: inline-grid;
+  grid-auto-flow: column;
   align-items: baseline;
+  align-content: center;
   gap: 4px;
   min-height: 26px;
   padding: 4px 8px;
@@ -2202,6 +2206,10 @@ details.ci.note[open] .more-note {
   font-size: 0.92rem;
   line-height: 1.1;
   white-space: nowrap;
+}
+/* Centre on the letters, not the font's descender space (dates and scores have none). */
+.rc > * {
+  text-box: trim-both cap alphabetic;
 }
 .rc small {
   font-family: var(--sans);
