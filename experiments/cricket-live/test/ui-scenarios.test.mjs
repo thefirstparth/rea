@@ -127,6 +127,61 @@ test(
   },
 );
 
+// India A plays at the same time as the senior team, and started first: it never leads.
+test(
+  "India means the senior team; India A is listed below it, never ahead",
+  { skip },
+  async () => {
+    const hard = structuredClone(rec.api);
+    const list = hard["/api/matches"].body.matches;
+    const senior = list.find((x) => String(x.id) === live);
+    senior.tags = ["india"];
+    list.push({
+      ...structuredClone(senior),
+      id: 999001,
+      series: "India A tour of New Zealand, 2026",
+      seriesId: 999,
+      t1: { ...senior.t1, id: 9001, name: "India A", short: "INDA" },
+      t2: { ...senior.t2, id: 9002, name: "New Zealand A", short: "NZA" },
+      tags: [],
+      indiaOther: true,
+      start: senior.start - 3 * 3600e3,
+    });
+    setApi(hard);
+    try {
+      const v = await open("#now");
+      const now = await v.page.locator("#view").innerText();
+      assert.doesNotMatch(now, /India A|New Zealand A/);
+      await v.page.evaluate(() => (location.hash = "#india"));
+      const head = v.page.locator("h2", {
+        hasText: "India A and other India sides",
+      });
+      await head.waitFor();
+      // The section comes after everything else on the tab.
+      assert.equal(
+        await head.evaluate(
+          (h) => [...document.querySelectorAll("#view h2")].at(-1) === h,
+        ),
+        true,
+      );
+      assert.match(
+        await v.page.locator('[data-k="oil"]').innerText(),
+        /India A/,
+      );
+      assert.doesNotMatch(
+        await v.page.locator(".hero").first().innerText(),
+        /India A/,
+      );
+      await v.page.evaluate(() => (location.hash = "#all"));
+      await v.page.locator("h2", { hasText: "India A tour" }).waitFor();
+      assert.deepEqual(v.errors, []);
+      await v.close();
+    } finally {
+      setApi();
+    }
+  },
+);
+
 test(
   "between seasons the IPL tab shows last season, and a tapped team is followed",
   { skip },
