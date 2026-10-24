@@ -271,6 +271,50 @@ test("squads: two sides, RSC $undefined removed, staff carry no captaincy", () =
   );
 });
 
+// India v New Zealand, 2nd T20I (24 Oct 2026) against the 1st: Cricbuzz marked two
+// India players in but only Mayank Yadav out; Ishan Kishan left the squad, so only the
+// previous XI names him.
+test("squads: XI changes join Cricbuzz's marks with the previous match's XI", () => {
+  const flightOf = (name) => {
+    const { team1, team2 } = JSON.parse(read(name));
+    return `"team1":${JSON.stringify(team1)},"team2":${JSON.stringify(team2)}`;
+  };
+  const now = cb.squads(flightOf("cb-squads-xi-2nd.json")).teams;
+  const before = cb.squads(flightOf("cb-squads-xi-1st.json")).teams;
+  const side = (teams, name) => teams.find((t) => t.name === name);
+  const names = (list) => list.map((p) => p.name).sort();
+  const changed = (name) =>
+    cb.xiChanges(side(now, name), side(before, name)).changes;
+
+  const india = changed("India");
+  assert.deepEqual(names(india.in), ["Prince Yadav", "Vaibhav Sooryavanshi"]);
+  assert.deepEqual(names(india.out), ["Ishan Kishan", "Mayank Yadav"]);
+  const nz = changed("New Zealand");
+  assert.deepEqual(names(nz.in), ["Jacob Duffy"]);
+  assert.deepEqual(names(nz.out), ["Adam Milne"]);
+
+  // Rows carry the marks too: in on the XI, out on the bench.
+  const rows = cb
+    .xiChanges(side(now, "India"), side(before, "India"))
+    .groups.flatMap((g) => g.players.map((p) => [p.name, g.label, p.change]));
+  assert.deepEqual(rows.filter(([, , c]) => c).sort(), [
+    ["Mayank Yadav", "Bench", "out"],
+    ["Prince Yadav", "Playing XI", "in"],
+    ["Vaibhav Sooryavanshi", "Playing XI", "in"],
+  ]);
+
+  // Without the previous match, Cricbuzz's own marks stand alone.
+  const marksOnly = cb.xiChanges(side(now, "India")).changes;
+  assert.deepEqual(names(marksOnly.out), ["Mayank Yadav"]);
+  assert.equal(marksOnly.in.length, 2);
+  // Before the toss there is no XI, so nothing is claimed.
+  const pre = {
+    ...side(now, "India"),
+    groups: [{ label: "squad", players: [] }],
+  };
+  assert.equal(cb.xiChanges(pre, side(before, "India")).changes, undefined);
+});
+
 test("India's schedule: men's India fixtures, beyond the live feeds' horizon", () => {
   const fixtures = cb.fixtures(
     read("cb-india-schedule.flight.txt"),

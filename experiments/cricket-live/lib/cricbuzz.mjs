@@ -1061,6 +1061,8 @@ export async function scorecard(id) {
 
 // ---------- squads
 
+const CHANGE = { IN: "in", OUT: "out" };
+
 function squadTeam(entry) {
   if (!entry?.team) return null;
   const groups = Object.entries(entry.players ?? {})
@@ -1074,6 +1076,10 @@ function squadTeam(entry) {
         players: list.map((p) => ({
           id: p.id,
           name: p.fullName || p.name,
+          // Cricbuzz's marks: in or out of the XI since the last match, and a
+          // replacement during this one.
+          change: CHANGE[p.playingXIChange] ?? null,
+          inMatch: CHANGE[p.inMatchChange] ?? null,
           role: p.role ?? "",
           // Support staff rows carry placeholder captain/keeper flags.
           c: !staff && p.captain === true,
@@ -1105,11 +1111,104 @@ const squadsFrom = (flight) => ({
   ),
 });
 
+const xiOf = (team) =>
+  team?.groups.find((g) => /playing xi/i.test(g.label))?.players ?? null;
+
+// What changed in a side's XI since its previous match: Cricbuzz's own marks, plus a
+// comparison with that match's XI. Cricbuzz marks only players still in the squad, so
+// one who left it (Ishan Kishan after the 1st T20I, 24 Oct 2026) is found only by the
+// comparison. Without an XI there is nothing to compare; without the previous match,
+// Cricbuzz's marks stand alone.
+function withChanges(team, prev) {
+  const xi = xiOf(team);
+  if (!xi) return team;
+  const before = xiOf(prev);
+  const ids = (list) => new Set(list.map((p) => String(p.id)));
+  const now = ids(xi);
+  const was = before ? ids(before) : null;
+  const players = team.groups.flatMap((g) => g.players);
+  const came = (p) => p.change === "in" || (was && !was.has(String(p.id)));
+  const left = (p) =>
+    p.change === "out" ||
+    (was && !now.has(String(p.id)) && was.has(String(p.id)));
+  const groups = team.groups.map((g) => ({
+    ...g,
+    players: g.players.map((p) => ({
+      ...p,
+      change: now.has(String(p.id))
+        ? came(p)
+          ? "in"
+          : null
+        : left(p)
+          ? "out"
+          : null,
+    })),
+  }));
+  const named = (p) => ({ id: p.id, name: p.name });
+  const out = [
+    ...players.filter((p) => !now.has(String(p.id)) && left(p)),
+    // Left the squad altogether: only the previous XI names them.
+    ...(before ?? []).filter(
+      (p) =>
+        !now.has(String(p.id)) &&
+        !players.some((x) => String(x.id) === String(p.id)),
+    ),
+  ].map(named);
+  return {
+    ...team,
+    groups,
+    changes: { in: xi.filter(came).map(named), out },
+  };
+}
+
+// Each side's previous match in the same series (by start), or none.
+async function previousSides(flight, id, teams) {
+  const info =
+    valueFor(flight, "matchInfo", id) ??
+    (await match(id).catch(() => null))?.header;
+  const series = info?.seriesId;
+  const start = Number(info?.startDate ?? info?.start);
+  if (!series || !start) return new Map();
+  const fixtures = await seriesFixtures(series);
+  const sides = new Map();
+  for (const t of teams) {
+    const prev = fixtures
+      .filter(
+        (m) =>
+          String(m.id) !== String(id) &&
+          m.start < start &&
+          m.phase !== "upcoming" &&
+          [m.t1.id, m.t2.id].some((x) => String(x) === String(t.id)),
+      )
+      .sort((a, b) => a.start - b.start)
+      .at(-1);
+    if (!prev) continue;
+    // A finished match's squads don't change.
+    const { value } = await cachedAt(
+      `squads:${prev.id}:done`,
+      SCHEDULE_TTL,
+      () => getFlight(`/cricket-match-squads/${prev.id}/x`),
+    );
+    const side = squadsFrom(value).teams.find(
+      (x) => String(x.id) === String(t.id),
+    );
+    if (side) sides.set(String(t.id), side);
+  }
+  return sides;
+}
+
 export async function squads(id) {
   const { value: flight, at } = await cachedAt(`squads:${id}`, 60000, () =>
     getFlight(`/cricket-match-squads/${id}/x`),
   );
-  return { asOf: at, ...squadsFrom(flight) };
+  const { teams } = squadsFrom(flight);
+  // The comparison is an extra: if the previous match can't be read, Cricbuzz's own
+  // marks still show.
+  const prev = await previousSides(flight, id, teams).catch(() => new Map());
+  return {
+    asOf: at,
+    teams: teams.map((t) => withChanges(t, prev.get(String(t.id)))),
+  };
 }
 
 // Pure parsers over captured upstream payloads, for the fixture tests.
@@ -1129,4 +1228,5 @@ export const parse = {
   commentary: commList,
   scorecard: scorecardFrom,
   squads: squadsFrom,
+  xiChanges: withChanges,
 };

@@ -2667,14 +2667,41 @@ function squadsTab(id) {
             (
               p,
             ) => `<div class="pl"><img class="face" src="${esc(p.face ?? "")}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">
-            <div><div class="nm">${esc(p.name)}${p.c ? '<span class="badge c" title="Captain">C</span>' : ""}${p.wk ? '<span class="badge" title="Wicketkeeper">WK</span>' : ""}${p.overseas ? '<span class="badge" title="Overseas">✈</span>' : ""}</div>
+            <div><div class="nm">${esc(p.name)}${p.c ? '<span class="badge c" title="Captain">C</span>' : ""}${p.wk ? '<span class="badge" title="Wicketkeeper">WK</span>' : ""}${p.overseas ? '<span class="badge" title="Overseas">✈</span>' : ""}${XI_BADGE[p.change] ?? ""}${SUB_BADGE[p.inMatch] ?? ""}</div>
             <div class="rl">${esc([p.role, p.bat ? `${p.bat[0]}${p.bat.slice(1).toLowerCase()}-hand bat` : "", p.bowl].filter(Boolean).join(" · "))}</div></div><span></span></div>`,
           )
           .join("")}`,
     )
     .join("");
-  return `${seg}<div class="card flush" data-k="sq${ti}">${groups || '<div class="kv">No players listed.</div>'}<p class="key" data-k="sqkey"><b>Key</b> C captain · WK wicketkeeper · ✈ overseas player</p></div>`;
+  const ch = t.changes;
+  const names = (list) => list.map((p) => esc(p.name)).join(", ");
+  // Players who left the squad have no row, so the summary is the only place they show.
+  const summary = ch
+    ? `<p class="xi-chg" data-k="sqchg"><b>Since the last match</b> ${
+        ch.in.length || ch.out.length
+          ? [
+              ch.in.length ? `<span>${XI_BADGE.in} ${names(ch.in)}</span>` : "",
+              ch.out.length
+                ? `<span>${XI_BADGE.out} ${names(ch.out)}</span>`
+                : "",
+            ].join("")
+          : "Unchanged XI"
+      }</p>`
+    : "";
+  const marked = t.groups.some((g) =>
+    g.players.some((p) => p.change || p.inMatch),
+  );
+  return `${seg}<div class="card flush" data-k="sq${ti}">${summary}${groups || '<div class="kv">No players listed.</div>'}<p class="key" data-k="sqkey"><b>Key</b> C captain · WK wicketkeeper · ✈ overseas player${marked ? " · In / Out changed since the team's last match · Sub replacement during this match" : ""}</p></div>`;
 }
+
+const XI_BADGE = {
+  in: '<span class="badge in" title="In the XI since the last match">In</span>',
+  out: '<span class="badge out" title="Out of the XI since the last match">Out</span>',
+};
+const SUB_BADGE = {
+  in: '<span class="badge in" title="Came on as a replacement in this match">Sub in</span>',
+  out: '<span class="badge out" title="Replaced during this match">Sub out</span>',
+};
 
 function infoTab(id, d) {
   const h = d.header;
