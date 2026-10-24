@@ -183,6 +183,44 @@ test(
 );
 
 test(
+  "a series with a match on marks the live one, not the next",
+  { skip },
+  async () => {
+    const hard = structuredClone(rec.api);
+    const list = hard["/api/matches"].body.matches;
+    const on = list.find((x) => String(x.id) === live);
+    on.tags = ["india"];
+    on.t2 = { ...on.t2, id: 2, name: "India", short: "IND" };
+    // Two fixtures still to come in the same series.
+    for (const [n, days] of [
+      ["3rd", 3],
+      ["4th", 6],
+    ])
+      list.push({
+        ...structuredClone(on),
+        id: 999100 + days,
+        desc: `${n} Test`,
+        phase: "upcoming",
+        state: "Preview",
+        status: "",
+        start: on.start + days * 864e5,
+      });
+    setApi(hard);
+    try {
+      const v = await open("#now");
+      const chips = v.page.locator(".series-now .rc");
+      await chips.first().waitFor();
+      assert.equal(await v.page.locator(".series-now .rc.live").count(), 1);
+      assert.equal(await v.page.locator(".series-now .rc.next").count(), 0);
+      assert.deepEqual(await audit(v.page), []);
+      await v.close();
+    } finally {
+      setApi();
+    }
+  },
+);
+
+test(
   "between seasons the IPL tab shows last season, and a tapped team is followed",
   { skip },
   async () => {

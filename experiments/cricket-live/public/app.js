@@ -1987,7 +1987,10 @@ function standings(fixtures) {
 function resultChips(fixtures) {
   const rows = byFormat(fixtures);
   if (!rows.length || fixtures.every((m) => m.phase === "upcoming")) return "";
-  const next = fixtures.find((m) => m.phase === "upcoming");
+  // One chip is the current match: the live one, else the next to come.
+  const next = fixtures.some((m) => m.phase === "live")
+    ? null
+    : fixtures.find((m) => m.phase === "upcoming");
   const words = [];
   const html = rows.map(({ format, list }) => {
     const chips = list.map((m, i) => {
