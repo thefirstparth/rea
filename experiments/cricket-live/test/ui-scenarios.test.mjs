@@ -212,6 +212,18 @@ test(
       await chips.first().waitFor();
       assert.equal(await v.page.locator(".series-now .rc.live").count(), 1);
       assert.equal(await v.page.locator(".series-now .rc.next").count(), 0);
+      // Each chip's text sits in its middle, whichever font size it uses.
+      const offCentre = await chips.evaluateAll((list) =>
+        list
+          .map((c) => {
+            const box = c.getBoundingClientRect();
+            const text = c.querySelector("b").getBoundingClientRect();
+            const off = text.top + text.height / 2 - (box.top + box.height / 2);
+            return [c.textContent, Math.round(off * 10) / 10];
+          })
+          .filter(([, off]) => Math.abs(off) > 1),
+      );
+      assert.deepEqual(offCentre, []);
       assert.deepEqual(await audit(v.page), []);
       await v.close();
     } finally {
