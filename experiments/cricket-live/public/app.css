@@ -2234,6 +2234,11 @@ details.ci.note[open] .more-note {
 .rc.next {
   box-shadow: inset 0 0 0 2px var(--accent);
 }
+.rc.live {
+  background: color-mix(in srgb, var(--live) 10%, transparent);
+  color: var(--bad-ink);
+  box-shadow: inset 0 0 0 2px var(--live);
+}
 .rc.live b::before {
   content: "";
   display: inline-block;
