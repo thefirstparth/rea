@@ -206,7 +206,8 @@ for 60 days and emails before it does; re-enable it from the Actions tab.
 ## Front end
 
 - **Now** (home) is only what matters now: the live India or IPL match, else
-  the soonest fixture of either, and that match's series (played so far, the
+  the last result of either for two days after it (until the next match is a day
+  away), else the soonest fixture of either, and that match's series (played so far, the
   latest result, the next three fixtures). Everything else lives in its tab.
 - **India** has the live or next match, India's last ten results grouped by
   series (from the team's results page), and every series ahead, each
@@ -257,8 +258,8 @@ for 60 days and emails before it does; re-enable it from the Actions tab.
   format ("ODIs: IND won 2–1") replaces a single mixed tally. On the India tab
   each recent series is one closed line ("ODIs IND 2–1 · T20Is 2–2 · 1 NR") that
   opens to its chips and matches; each series ahead leads with a calendar tile.
-- **Matchday poster**: when no India or IPL match is live, home leads with the
-  next one as a poster: both sides' flags on their team colours (darkened until
+- **Matchday poster**: when no India or IPL match is live and no result is
+  being kept up, home leads with the next one as a poster: both sides' flags on their team colours (darkened until
   white text passes WCAG AA), the countdown to the first ball, and the start in
   IST and at the ground.
 - **IPL**: while a season runs (first match to three days after the last), the

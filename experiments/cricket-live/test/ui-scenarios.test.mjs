@@ -233,6 +233,65 @@ test(
 );
 
 test(
+  "home keeps India's last result up for two days, until the next match is a day away",
+  { skip },
+  async () => {
+    const at = Date.parse(rec.capturedAt);
+    const H = 3600e3;
+    // The recording's last India result (151602) ended about 70 hours before it and
+    // India's next match (161190) was 41 hours off.
+    const moved = (changes) => {
+      const api = structuredClone(rec.api);
+      const sched = api["/api/schedule"].body;
+      for (const m of [...sched.india, ...sched.indiaResults])
+        Object.assign(m, changes[m.id] ?? {});
+      return api;
+    };
+    const recent = { 151602: { start: at - 10 * H, end: at - 6 * H } };
+    const home = async () => {
+      const v = await open("#now");
+      const out = {
+        heading: await v.page.locator("#view h1").innerText(),
+        result: await v.page.locator('[data-k="h151602"]').count(),
+        poster: await v.page.locator(".poster").count(),
+        next: await v.page.locator('[data-k="n161190"]').count(),
+        after: await v.page
+          .locator('[data-k="csl"]')
+          .innerText()
+          .catch(() => ""),
+        errors: v.errors,
+      };
+      if (out.result) assert.deepEqual(await audit(v.page), []);
+      await v.close();
+      return out;
+    };
+    try {
+      setApi(moved(recent));
+      const fresh = await home();
+      assert.match(fresh.heading, /latest result/i);
+      assert.equal(fresh.result, 1);
+      assert.equal(fresh.poster, 0);
+      assert.equal(fresh.next, 1, "the next match follows the result");
+      assert.doesNotMatch(fresh.after, /1st T20I/, "and isn't listed twice");
+      assert.deepEqual(fresh.errors, []);
+
+      setApi(moved({ ...recent, 161190: { start: at + 20 * H } }));
+      const soon = await home();
+      assert.match(soon.heading, /up next/i);
+      assert.equal(soon.result, 0);
+      assert.equal(soon.poster, 1);
+
+      setApi();
+      const stale = await home();
+      assert.match(stale.heading, /up next/i);
+      assert.equal(stale.result, 0);
+    } finally {
+      setApi();
+    }
+  },
+);
+
+test(
   "between seasons the IPL tab shows last season, and a tapped team is followed",
   { skip },
   async () => {
