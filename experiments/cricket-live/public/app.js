@@ -1225,7 +1225,9 @@ function tags(m) {
       .map(
         (t) => `<span class="tag ${t}">${t === "ipl" ? "IPL" : "India"}</span>`,
       )
-      .join("") + favTag(m)
+      .join("") +
+    (m.indiaOther ? `<span class="tag">${esc(sideOf(m))}</span>` : "") +
+    favTag(m)
   );
 }
 
@@ -1270,7 +1272,7 @@ function skeleton(n = 2) {
 const TITLES = { now: "Live now", india: "India", ipl: "IPL", all: "All live" };
 const SUBS = {
   now: "India and IPL, ball by ball",
-  india: "India men, plus A and U19 sides",
+  india: "India men's team",
   ipl: "Indian Premier League",
   all: "Every match under way, including those at a break",
 };
@@ -1467,7 +1469,23 @@ function indiaView() {
       "No India fixtures listed",
       "Cricbuzz hasn't published India's next matches yet.",
     );
-  return html + foot();
+  return html + otherIndiaSection() + foot();
+}
+
+// India A, U19 and other India sides: below everything of the senior team's, live
+// first, then the next fixtures, then recent results.
+const PHASE_RANK = { live: 0, upcoming: 1, done: 2 };
+function otherIndiaSection() {
+  const list = (S.list?.matches ?? [])
+    .filter((m) => m.indiaOther)
+    .sort(
+      (a, b) =>
+        PHASE_RANK[a.phase] - PHASE_RANK[b.phase] ||
+        (a.phase === "done" ? byStartDesc(a, b) : byStartAsc(a, b)),
+    )
+    .slice(0, 8);
+  if (!list.length) return "";
+  return `<h2 class="sec" data-k="oih"><span>India A and other India sides</span></h2><div class="list" data-k="oil">${list.map(row).join("")}</div>`;
 }
 
 // An ICC event: a countdown before it, live matches, India's path, the groups, the
@@ -1693,7 +1711,10 @@ const TYPE_RANK = { International: 1, League: 2, Domestic: 3 };
 const groupRank = (list) =>
   list.some((m) => m.tags.length)
     ? 0
-    : (TYPE_RANK[list[0].type] ?? 4) + (list.some((m) => !paused(m)) ? 0 : 10);
+    : list.some((m) => m.indiaOther)
+      ? 0.5
+      : (TYPE_RANK[list[0].type] ?? 4) +
+        (list.some((m) => !paused(m)) ? 0 : 10);
 
 function allLiveView() {
   let html = `<div class="ph" data-k="ph"><h1 tabindex="-1">${TITLES.all}</h1><p>${SUBS.all}</p></div>`;

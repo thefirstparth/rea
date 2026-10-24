@@ -122,7 +122,10 @@ Classification:
 - **Men's cricket only**: Cricbuzz has no gender field, so any match whose team
   or series name says "Women" (India Women, Women's Premier League) is dropped
   where matches are first parsed. Their match pages are refused as well.
-- **India**: either team's name starts with `India` (India, India A, India U19).
+- **India**: the senior men's team, a side named exactly `India`. India A, India U19
+  and other India sides (`indiaOther`) aren't tagged: they never lead home or the
+  India tab, and alerts don't cover them. The India tab lists them in their own
+  section at the bottom; All live puts them right after India and the IPL.
 - **IPL**: the series name matches `Indian Premier League` or `IPL`.
 - **Phase**: `Preview` and `Upcoming` are upcoming. `Complete`, `Abandon` and
   `No result` are done. Everything else is live. Stumps, lunch, tea, rain and

@@ -161,6 +161,29 @@ test("a result in the status settles the match; a declared side isn't batting", 
   assert.equal(cb.match(raw).mini.batTeam, raw.miniscore.batTeam.teamId);
 });
 
+// "India" is the senior men's team; India A and the like are listed apart. Cricbuzz once
+// doubled a series name into itself; the copy inside is the name.
+test("only the senior team is India; other India sides and doubled names", () => {
+  const raw = json("cb-comm-live.json");
+  const a = structuredClone(raw);
+  a.matchHeader.team1.name = "India A";
+  a.matchHeader.team2.name = "New Zealand A";
+  a.matchHeader.seriesName =
+    "India A tour of NeIndia A tour of New Zealand, 2026w Zealand, 2026";
+  const h = cb.match(a).header;
+  assert.deepEqual(h.tags, []);
+  assert.equal(h.indiaOther, true);
+  assert.equal(h.series, "India A tour of New Zealand, 2026");
+  const senior = structuredClone(raw);
+  senior.matchHeader.team1.name = "India";
+  senior.matchHeader.team2.name = "India A";
+  const s = cb.match(senior).header;
+  assert.deepEqual(s.tags, ["india"]);
+  assert.equal(s.indiaOther, false);
+  // An ordinary name is left alone.
+  assert.equal(cb.match(raw).header.series, raw.matchHeader.seriesName);
+});
+
 test("a match centre that isn't open yet is a 404, not a crash", () => {
   assert.throws(() => cb.match(json("cb-comm-upcoming.json")), {
     status: 404,

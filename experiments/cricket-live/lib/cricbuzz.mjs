@@ -114,7 +114,25 @@ function phaseOf(state, status = "") {
   return "live";
 }
 
-const isIndia = (name) => /^India(\s|$)/.test(name || "");
+// "India" is the senior men's team. India A, India U19 and the like are other India
+// sides: listed, but never ahead of the senior team (no "india" tag).
+const isIndia = (name) => (name || "").trim() === "India";
+const isOtherIndia = (name) => /^India\s/.test((name || "").trim());
+const otherIndia = (a, b) =>
+  !isIndia(a) && !isIndia(b) && (isOtherIndia(a) || isOtherIndia(b));
+
+// Cricbuzz sometimes doubles a name into itself ("India A tour of NeIndia A tour of
+// New Zealand, 2026w Zealand, 2026"): the copy inside is the name.
+function undoubled(name) {
+  const n = name ?? "";
+  if (n.length % 2) return n;
+  const len = n.length / 2;
+  for (let k = 1; k < len; k++) {
+    const inner = n.slice(k, k + len);
+    if (n.slice(0, k) + n.slice(k + len) === inner) return inner;
+  }
+  return n;
+}
 
 // The app covers men's cricket only. Cricbuzz has no gender field: women's sides
 // are named "X Women" and women's competitions say so ("Women's Premier League").
@@ -213,7 +231,7 @@ function summary(entry, type = "") {
   const s2 = innings(s?.team2Score);
   return {
     id: i.matchId,
-    series: i.seriesName ?? "",
+    series: undoubled(i.seriesName),
     seriesId: i.seriesId ?? null,
     desc: i.matchDesc ?? "",
     format: i.matchFormat ?? "",
@@ -230,6 +248,7 @@ function summary(entry, type = "") {
     s1,
     s2,
     tags: tagsFor(i.seriesName, t1.name, t2.name),
+    indiaOther: otherIndia(t1.name, t2.name),
   };
 }
 
@@ -799,7 +818,7 @@ function header(h) {
     desc: h.matchDescription ?? "",
     format: h.matchFormat ?? "",
     type: h.matchType ?? "",
-    series: h.seriesName ?? h.seriesDesc ?? "",
+    series: undoubled(h.seriesName ?? h.seriesDesc ?? ""),
     seriesId: h.seriesId ?? null,
     start: h.matchStartTimestamp ?? null,
     ...settled(h.state, h.status),
@@ -817,6 +836,7 @@ function header(h) {
     t1,
     t2,
     tags: tagsFor(h.seriesName, t1.name, t2.name),
+    indiaOther: otherIndia(t1.name, t2.name),
   };
 }
 
